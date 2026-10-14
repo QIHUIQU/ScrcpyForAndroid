@@ -98,6 +98,9 @@ object ControlledLockWake {
         strongAuthRequired = parseStrongAuthRequired(trustOutput),
     )
 
+    fun shouldAttemptEpisode(attempted: Boolean, nowMs: Long, lastAttemptMs: Long): Boolean =
+        !attempted && nowMs - lastAttemptMs >= 1_000L
+
     /** v3 dismiss 门（纯函数；真值表见类注释）。 */
     fun dismissGate(samples: List<Sample>, sentSessions: Int): Gate {
         if (sentSessions <= 0) return Gate(false, REASON_SENT_ZERO)

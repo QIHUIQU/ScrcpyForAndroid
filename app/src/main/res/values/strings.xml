@@ -221,9 +221,12 @@
     <string name="pref_title_auto_jump">Auto jump back to remote control</string>
     <string name="pref_summary_auto_jump">When a session is active, unlocking this device or returning to the app main screen jumps straight back to the remote-control view (turn off to stay on the main screen)</string>
     <string name="pref_title_controlled_lock_wake">Wake and unlock the controlled device</string>
-    <string name="pref_summary_controlled_lock_wake">When this device is unlocked, check the controlled device once: if its screen is locked, turn it on and dismiss the keyguard (skipped when a real secure lock is detected)</string>
+    <string name="pref_summary_controlled_lock_wake">On controller unlock, wake the locked controlled device; secure locks use the saved device password when one matches</string>
     <string name="pref_title_video_scale_locked">Lock zoom factor</string>
     <string name="pref_summary_video_scale_locked">Keep the current zoom factor unchanged until unlocked; two-finger panning still works</string>
+    <string name="pref_title_controlled_lock_auto_password">Automatically submit saved device PIN</string>
+    <string name="pref_summary_controlled_lock_auto_password">On by default; can be turned off. Only an unauthenticated password entry named exactly as the connected device serial is used; submission skips the interactive biometric prompt for that device. Never keep it on for a device that is not yours.</string>
+    <string name="controlled_lock_manual_input_needed">Controlled device woken up — enter its password manually (auto-unlock: save an unauthenticated password entry named exactly as the device serial).</string>
     <string name="pref_title_pay_blackout_delay">Blackout delay after use</string>
     <string name="pref_summary_pay_blackout_delay">Delay before turning off the screen of the controlled device after you return and operate this device (0-30 s, default 0)</string>
     <string name="pref_title_pay_blackout_fallback">Blackout fallback countdown</string>

@@ -180,6 +180,12 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
             booleanPreferencesKey("controlled_lock_wake_enabled"),
             true,
         )
+        val CONTROLLED_LOCK_AUTO_PASSWORD_ENABLED = Pair(
+            booleanPreferencesKey("controlled_lock_auto_password_enabled"),
+            // 用户口径: 建议默认开、可关。生效前提 = 密码库存在“名称与设备序列号完全相同、
+            // 创建时未启用认证”的唯一条目 (等同一次显式登记), 否则一律降级为手动输入提示。
+            true,
+        )
         val VIDEO_SCALE_LOCKED = Pair(booleanPreferencesKey("video_scale_locked"), false)
         val FULLSCREEN_DEBUG_INFO = Pair(
             booleanPreferencesKey("fullscreen_debug_info"),
@@ -392,6 +398,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         val payBlackoutFallbackSec: Int,
         val processKeepAliveEnabled: Boolean,
         val controlledLockWakeEnabled: Boolean,
+        val controlledLockAutoPasswordEnabled: Boolean,
         val fullscreenDebugInfo: Boolean,
         val hideSimpleConfigItems: Boolean,
         val previewCardOnTop: Boolean,
@@ -471,6 +478,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         bundleField(PAY_BLACKOUT_FALLBACK_SEC) { it.payBlackoutFallbackSec },
         bundleField(PROCESS_KEEP_ALIVE_ENABLED) { it.processKeepAliveEnabled },
         bundleField(CONTROLLED_LOCK_WAKE_ENABLED) { it.controlledLockWakeEnabled },
+        bundleField(CONTROLLED_LOCK_AUTO_PASSWORD_ENABLED) { it.controlledLockAutoPasswordEnabled },
         bundleField(FULLSCREEN_DEBUG_INFO) { it.fullscreenDebugInfo },
         bundleField(HIDE_SIMPLE_CONFIG_ITEMS) { it.hideSimpleConfigItems },
         bundleField(PREVIEW_CARD_ON_TOP) { it.previewCardOnTop },
@@ -551,6 +559,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         payBlackoutFallbackSec = preferences.read(PAY_BLACKOUT_FALLBACK_SEC),
         processKeepAliveEnabled = preferences.read(PROCESS_KEEP_ALIVE_ENABLED),
         controlledLockWakeEnabled = preferences.read(CONTROLLED_LOCK_WAKE_ENABLED),
+        controlledLockAutoPasswordEnabled = preferences.read(CONTROLLED_LOCK_AUTO_PASSWORD_ENABLED),
         fullscreenDebugInfo = preferences.read(FULLSCREEN_DEBUG_INFO),
         hideSimpleConfigItems = preferences.read(HIDE_SIMPLE_CONFIG_ITEMS),
         previewCardOnTop = preferences.read(PREVIEW_CARD_ON_TOP),

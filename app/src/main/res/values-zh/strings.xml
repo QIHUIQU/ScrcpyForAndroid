@@ -220,9 +220,12 @@
     <string name="pref_title_auto_jump">自动跳回远控界面</string>
     <string name="pref_summary_auto_jump">有活跃会话时，解锁本机或回到 App 主界面都会自动跳回远控画面（关闭后停留在主界面）</string>
     <string name="pref_title_controlled_lock_wake">被控端锁屏自动唤醒</string>
-    <string name="pref_summary_controlled_lock_wake">控制端解锁时自动检测被控端：锁屏则亮屏并按条件解除锁屏（检测到真安全锁时不动作）</string>
+    <string name="pref_summary_controlled_lock_wake">控制端解锁时检测并唤醒被控端；真安全锁在密码库有对应条目时自动提交密码</string>
     <string name="pref_title_video_scale_locked">锁定画面倍率</string>
     <string name="pref_summary_video_scale_locked">锁定后不能调节或复位倍率，双指平移仍可用</string>
+    <string name="pref_title_controlled_lock_auto_password">自动提交已保存的设备密码</string>
+    <string name="pref_summary_controlled_lock_auto_password">默认开启，可关闭。仅对密码库中名称与当前设备序列号完全相同、创建时未启用认证的条目生效；自动填入时不弹出生物认证，请确认设备是自己的。</string>
+    <string name="controlled_lock_manual_input_needed">被控端已唤醒，请手动输入密码（自动解锁：在密码库保存一个与设备序列号同名的未认证条目）</string>
     <string name="pref_title_pay_blackout_delay">用完黑屏延迟</string>
     <string name="pref_summary_pay_blackout_delay">回到控制端操作后，延迟多久关闭被控端屏幕（0-30 秒，默认 0 即立即）</string>
     <string name="pref_title_pay_blackout_fallback">黑屏兜底倒计时</string>

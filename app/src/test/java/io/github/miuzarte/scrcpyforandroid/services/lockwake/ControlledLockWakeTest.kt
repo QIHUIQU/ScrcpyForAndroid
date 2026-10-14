@@ -7,6 +7,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ControlledLockWakeTest {
+    @Test fun threeFastUnlockEpisodes() {
+        var last = 0L
+        for (now in listOf(3_000L, 6_000L, 9_000L)) {
+            assertTrue(ControlledLockWake.shouldAttemptEpisode(false, now, last))
+            assertFalse(ControlledLockWake.shouldAttemptEpisode(true, now + 200, now))
+            last = now // ACTION_SCREEN_OFF immediately resets attempted flag
+        }
+        assertFalse(ControlledLockWake.shouldAttemptEpisode(false, 9_500L, last))
+    }
+
     private val windowLockedSecure =
         "  KeyguardServiceDelegate\n    showing=true\n    secure=true\n    mSimSecure=false\n"
     private val windowLockedInsecure =

@@ -582,6 +582,12 @@ fun SettingsPage(
                     checked = asBundle.videoScaleLocked,
                     onCheckedChange = { asBundle = asBundle.copy(videoScaleLocked = it) },
                 )
+                SwitchPreference(
+                    title = stringResource(R.string.pref_title_controlled_lock_auto_password),
+                    summary = stringResource(R.string.pref_summary_controlled_lock_auto_password),
+                    checked = asBundle.controlledLockAutoPasswordEnabled,
+                    onCheckedChange = { asBundle = asBundle.copy(controlledLockAutoPasswordEnabled = it) },
+                )
                 ArrowSlider(
                     title = stringResource(R.string.pref_title_pay_blackout_delay),
                     summary = stringResource(R.string.pref_summary_pay_blackout_delay),
