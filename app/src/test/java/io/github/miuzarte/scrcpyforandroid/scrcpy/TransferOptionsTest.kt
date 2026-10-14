@@ -15,7 +15,7 @@ import org.junit.Test
 class TransferOptionsTest {
 
     @Test
-    fun transferSessionKeepsVdContent() {
+    fun transferSessionDisablesVdDestroyContent() {
         val plan = TransferOptions.plan(
             currentNewDisplay = "",
             configuredVdSize = "768x1024",
@@ -25,8 +25,8 @@ class TransferOptionsTest {
         assertTrue(plan.transfer)
         assertEquals("com.example.app", plan.startApp)
         assertEquals("768x1024", plan.newDisplay)
-        // 必须以保留内容启动，否则再次切换时应用被销毁（A 回归缺陷）
-        assertEquals(true, plan.keepVdContent)
+        // 必须以 vd_destroy_content=false 启动（应用移到主屏而非被销毁），否则再次切换时应用被杀（A 回归缺陷）
+        assertEquals(false, plan.vdDestroyContent)
     }
 
     @Test
@@ -80,7 +80,7 @@ class TransferOptionsTest {
         assertEquals("", plan.newDisplay)
         assertEquals("", plan.startApp)
         // 切回镜像没有虚拟显示，不覆盖 vdDestroyContent（维持 base）
-        assertNull(plan.keepVdContent)
+        assertNull(plan.vdDestroyContent)
     }
 
     @Test

@@ -437,11 +437,11 @@ object NativeCoreFacade {
                 newDisplay = plan.newDisplay,
                 startApp = plan.startApp,
             )
-            val keepVdContent = plan.keepVdContent
-            if (keepVdContent != null) {
-                // 流转会话必须以 vd_destroy_content=false 启动: 再次切换/切回镜像时,
+            val vdDestroyContent = plan.vdDestroyContent
+            if (vdDestroyContent != null) {
+                // 流转会话以 vd_destroy_content=false 启动: 再次切换/切回镜像时,
                 // 虚拟显示被关闭会把应用移到主屏继续运行, 而不是连同应用一起销毁 (A 回归修复)
-                options = options.copy(vdDestroyContent = keepVdContent)
+                options = options.copy(vdDestroyContent = vdDestroyContent)
             }
             options.fix().validate()
         }.getOrElse { error ->

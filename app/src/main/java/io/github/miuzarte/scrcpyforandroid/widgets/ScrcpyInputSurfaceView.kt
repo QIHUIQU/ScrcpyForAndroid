@@ -124,12 +124,38 @@ class ScrcpyInputSurfaceView @JvmOverloads constructor(
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI
         // 第二个参数 true = 完整编辑器模式: 让 IME 的组合/候选状态机 (setComposingText/选区)
-        // 得到确认, 降低中文输入法中途清空组合导致丢字的概率; 文本提交仍由 commitText 拦截
+        // 得到确认。部分中文输入法(如 qime)提交候选时只走 setComposingText+finishComposingText,
+        // 不调 commitText — 组合态被拒绝时其提交会静默丢失 (v7/v8 丢字根因方向);
+        // 因此这里既接受组合态, 又在 finishComposingText 时把最终文本转发出去
         return object: BaseInputConnection(this, true) {
             override fun commitText(text: CharSequence, newCursorPosition: Int): Boolean {
                 Log.i(TAG, "commitText(len=${text.length})")
-                if (inputCallbacks?.handleCommitText(text) == true) return true
+                if (inputCallbacks?.handleCommitText(text) == true) {
+                    // 已转发: 清掉本地组合缓冲, 防止随后的 finishComposingText 重复提交
+                    getEditable()?.clear()
+                    return true
+                }
                 return super.commitText(text, newCursorPosition)
+            }
+
+            override fun setComposingText(text: CharSequence, newCursorPosition: Int): Boolean {
+                val result = super.setComposingText(text, newCursorPosition)
+                Log.i(TAG, "setComposingText(len=${text.length}, accepted=$result)")
+                // 纯组合过程不转发, 等 finishComposingText (或 commitText) 落定
+                return result
+            }
+
+            override fun finishComposingText(): Boolean {
+                val composed = getEditable()?.toString().orEmpty()
+                val result = super.finishComposingText()
+                if (composed.isBlank()) return result
+                if (inputCallbacks?.handleCommitText(composed) == true) {
+                    Log.i(TAG, "finishComposingText -> forwarded(len=${composed.length})")
+                    getEditable()?.clear()
+                } else {
+                    Log.i(TAG, "finishComposingText len=${composed.length} (callback declined)")
+                }
+                return result
             }
 
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {

@@ -18,8 +18,12 @@ object LocalInputService {
         val inputManager =
             view.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
                 ?: return
+        // 强制重建输入会话: 会话重连/窗口重建后, 输入法可能仍持有旧视图的失效连接
+        // (届时其打字不会进入注入路径 — D 回归根因之一); restartInput 让系统重新分配
+        // InputConnection, 输入法必须重新取连接后再显示
+        inputManager.restartInput(view)
         inputManager.showSoftInput(view, 0)
-        Log.i(TAG, "showSoftKeyboard: showSoftInput issued")
+        Log.i(TAG, "showSoftKeyboard: restartInput+showSoftInput issued")
     }
 
     fun getClipboardText(context: Context): String? {

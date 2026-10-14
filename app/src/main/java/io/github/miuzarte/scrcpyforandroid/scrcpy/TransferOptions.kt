@@ -48,21 +48,23 @@ object TransferOptions {
                     normalizeVdSize(configuredVdSize) ?: DEFAULT_VD_SIZE
                 },
                 startApp = transferStartApp,
-                keepVdContent = true,
+                // false = 不销毁虚拟显示内容 (server: vd_destroy_content=false): 关闭时应用移到主屏
+                vdDestroyContent = false,
                 transfer = true,
             )
         } else {
-            Plan(newDisplay = "", startApp = "", keepVdContent = null, transfer = false)
+            Plan(newDisplay = "", startApp = "", vdDestroyContent = null, transfer = false)
         }
 
     /**
-     * @property keepVdContent true → 会话必须以 vd_destroy_content=false 启动；
+     * @property vdDestroyContent 会话要使用的 `vdDestroyContent` 字段终值
+     *   （直接 copy 到 ClientOptions；false = 虚拟显示关闭时应用移到主屏而非被销毁）；
      *   null → 维持 base 取值（切回镜像没有虚拟显示，该项无意义）
      */
     data class Plan(
         val newDisplay: String,
         val startApp: String,
-        val keepVdContent: Boolean?,
+        val vdDestroyContent: Boolean?,
         val transfer: Boolean,
     )
 }
