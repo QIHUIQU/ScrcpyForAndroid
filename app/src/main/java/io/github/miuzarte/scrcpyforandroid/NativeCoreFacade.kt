@@ -4,6 +4,7 @@ import android.util.Log
 import android.view.Surface
 import io.github.miuzarte.scrcpyforandroid.nativecore.DecoderCapabilities
 import io.github.miuzarte.scrcpyforandroid.nativecore.PersistentVideoRenderer
+import io.github.miuzarte.scrcpyforandroid.nativecore.VideoSurfacePolicy
 import io.github.miuzarte.scrcpyforandroid.nativecore.VideoDecoderController
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
@@ -47,6 +48,19 @@ object NativeCoreFacade {
     @Volatile
     private var activeSurfaceId: Int? = null
 
+    // 显示输出双槽位: primary=全屏控制页表面, preview=设备卡预览表面; 全屏优先 (见 VideoSurfacePolicy)
+    @Volatile
+    private var primarySurface: Surface? = null
+
+    @Volatile
+    private var primarySurfaceId: Int? = null
+
+    @Volatile
+    private var previewSurface: Surface? = null
+
+    @Volatile
+    private var previewSurfaceId: Int? = null
+
     @Volatile
     private var recordingSurfaceAttached = false
 
@@ -88,28 +102,49 @@ object NativeCoreFacade {
         renderer.setGamma(GammaSettings.normalize(value))
     }
 
-    suspend fun attachVideoSurface(surface: Surface) {
+    suspend fun attachVideoSurface(surface: Surface, primary: Boolean) {
         sessionLifecycleMutex.withLock {
             if (!surface.isValid) {
-                Log.w(TAG, "attachVideoSurface(): skip invalid surface")
+                Log.w(TAG, "attachVideoSurface(): skip invalid surface primary=$primary")
                 return
             }
             val newId = System.identityHashCode(surface)
-            if (activeSurfaceId == newId && controller.isDecoderUsable()) {
+            if (primary) {
+                primarySurface = surface
+                primarySurfaceId = newId
+            } else {
+                previewSurface = surface
+                previewSurfaceId = newId
+            }
+            val primaryValid = primarySurface?.isValid == true
+            if (!VideoSurfacePolicy.shouldSwitchOnAttach(primary, primaryValid)) {
+                Log.i(
+                    TAG,
+                    "attachVideoSurface(): preview surfaceId=$newId registered; " +
+                        "primary surfaceId=$primarySurfaceId keeps output (active=$activeSurfaceId)",
+                )
                 return
             }
-            Log.i(TAG, "attachVideoSurface(): surfaceId=$newId oldSurfaceId=$activeSurfaceId")
-            activeSurfaceId = newId
-            controller.attachDisplaySurface(surface)
-            val session = controller.getCurrentSessionInfo() ?: return
-            if (controller.isDecoderUsable()) {
-                Log.i(TAG, "attachVideoSurface(): try switch decoder output to persistent surface")
-                if (controller.trySwitchDecoderSurface()) {
-                    return
-                }
-            }
-            controller.ensureDecoder(session)
+            switchDisplayOutput(surface, newId)
         }
+    }
+
+    /** 把解码器显示输出切到 [surface]（全屏/预览共用；调用方持 [sessionLifecycleMutex]）。 */
+    private suspend fun switchDisplayOutput(surface: Surface, newId: Int) {
+        if (activeSurfaceId == newId && controller.isDecoderUsable()) {
+            return
+        }
+        Log.i(TAG, "attachVideoSurface(): switch output to surfaceId=$newId oldSurfaceId=$activeSurfaceId")
+        activeSurfaceId = newId
+        controller.attachDisplaySurface(surface)
+        val session = controller.getCurrentSessionInfo() ?: return
+        if (controller.isDecoderUsable()) {
+            Log.i(TAG, "attachVideoSurface(): try switch decoder output to persistent surface")
+            if (controller.trySwitchDecoderSurface()) {
+                return
+            }
+        }
+        controller.ensureDecoder(session)
     }
 
     /**
@@ -123,19 +158,42 @@ object NativeCoreFacade {
      */
     suspend fun detachVideoSurface(surface: Surface? = null, releaseDecoder: Boolean = false) {
         sessionLifecycleMutex.withLock {
-            val currentId = activeSurfaceId
             val requestId = surface?.let { System.identityHashCode(it) }
-            if (requestId != null && currentId != null && requestId != currentId) {
+            val isPrimary = requestId != null && requestId == primarySurfaceId
+            val isPreview = requestId != null && requestId == previewSurfaceId
+            if (requestId != null && !isPrimary && !isPreview) {
                 Log.i(
                     TAG,
-                    "detachVideoSurface(): skip stale request requestSurfaceId=$requestId currentSurfaceId=$currentId",
+                    "detachVideoSurface(): skip stale request requestSurfaceId=$requestId " +
+                        "active=$activeSurfaceId primary=$primarySurfaceId preview=$previewSurfaceId",
                 )
                 return
             }
             Log.i(
                 TAG,
-                "detachVideoSurface(): surfaceId=$requestId releaseDecoder=$releaseDecoder",
+                "detachVideoSurface(): surfaceId=$requestId releaseDecoder=$releaseDecoder " +
+                    "primary=$isPrimary preview=$isPreview active=$activeSurfaceId",
             )
+            if (isPrimary) {
+                primarySurface = null
+                primarySurfaceId = null
+            }
+            if (isPreview) {
+                previewSurface = null
+                previewSurfaceId = null
+            }
+            if (requestId != null && requestId != activeSurfaceId) {
+                // 非当前输出: 仅清槽位, 不触碰输出
+                return
+            }
+            val preview = previewSurface
+            val previewId = previewSurfaceId
+            val fallbackUsable = preview != null && previewId != null && preview.isValid
+            if (VideoSurfacePolicy.shouldFallbackToPreview(isPrimary, fallbackUsable)) {
+                Log.i(TAG, "detachVideoSurface(): primary gone, fallback to preview surfaceId=$previewId")
+                switchDisplayOutput(preview!!, previewId!!)
+                return
+            }
             activeSurfaceId = null
             controller.detachDisplaySurface(surface, releaseDecoder)
         }

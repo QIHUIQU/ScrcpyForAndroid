@@ -858,6 +858,7 @@ fun FullscreenControlPage(
             ScrcpyVideoSurface(
                 modifier = Modifier
                     .fillMaxSize(),
+                primary = true,
                 session = session,
                 imeRequestToken = imeRequestToken,
                 onImeCommitText = onImeCommitText,
