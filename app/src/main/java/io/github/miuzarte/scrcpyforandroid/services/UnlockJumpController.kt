@@ -10,6 +10,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
 import io.github.miuzarte.scrcpyforandroid.StreamActivity
+import io.github.miuzarte.scrcpyforandroid.services.lockwake.ControlledLockWakeController
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -66,15 +67,20 @@ object UnlockJumpController {
                 val action = intent.action ?: return
                 Log.i(TAG, "broadcast: $action")
                 when (action) {
-                    Intent.ACTION_USER_PRESENT -> tryJump(source = "user_present")
+                    Intent.ACTION_USER_PRESENT -> {
+                        ControlledLockWakeController.onControlUnlocked("user_present")
+                        tryJump(source = "user_present")
+                    }
                     Intent.ACTION_SCREEN_ON -> {
                         val keyguardLocked = keyguardManager()?.isKeyguardLocked == true
                         if (keyguardLocked) {
                             Log.i(TAG, "screen_on: keyguard locked -> wait for user_present/poll")
                         } else {
+                            ControlledLockWakeController.onControlUnlocked("screen_on")
                             tryJump(source = "screen_on")
                         }
                     }
+                    Intent.ACTION_SCREEN_OFF -> ControlledLockWakeController.resetEpisode("screen_off")
                 }
             }
         }
@@ -91,10 +97,11 @@ object UnlockJumpController {
                 IntentFilter().apply {
                     addAction(Intent.ACTION_USER_PRESENT)
                     addAction(Intent.ACTION_SCREEN_ON)
+                    addAction(Intent.ACTION_SCREEN_OFF)
                 },
                 ContextCompat.RECEIVER_EXPORTED,
             )
-            Log.i(TAG, "receiver registered (process lifetime): USER_PRESENT, SCREEN_ON, flags=EXPORTED")
+            Log.i(TAG, "receiver registered (process lifetime): USER_PRESENT, SCREEN_ON, SCREEN_OFF, flags=EXPORTED")
         }.onFailure {
             Log.w(TAG, "receiver register failed", it)
         }
@@ -147,7 +154,10 @@ object UnlockJumpController {
                 delay(POLL_INTERVAL_MS)
                 val usable = isScreenUsable(powerManager, keyguardManager)
                 if (shouldTriggerOnWakeTransition(usable, lastUsable)) {
+                    ControlledLockWakeController.onControlUnlocked("poll_wake")
                     tryJump(source = "poll_wake")
+                } else if (!usable && lastUsable) {
+                    ControlledLockWakeController.resetEpisode("screen_off_poll")
                 }
                 lastUsable = usable
             }

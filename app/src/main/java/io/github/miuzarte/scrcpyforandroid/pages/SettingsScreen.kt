@@ -566,6 +566,16 @@ fun SettingsPage(
                         )
                     },
                 )
+                SwitchPreference(
+                    title = stringResource(R.string.pref_title_controlled_lock_wake),
+                    summary = stringResource(R.string.pref_summary_controlled_lock_wake),
+                    checked = asBundle.controlledLockWakeEnabled,
+                    onCheckedChange = {
+                        asBundle = asBundle.copy(
+                            controlledLockWakeEnabled = it,
+                        )
+                    },
+                )
                 ArrowSlider(
                     title = stringResource(R.string.pref_title_pay_blackout_delay),
                     summary = stringResource(R.string.pref_summary_pay_blackout_delay),

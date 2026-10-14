@@ -9,6 +9,7 @@ import io.github.miuzarte.scrcpyforandroid.nativecore.VideoDecoderController
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
 import io.github.miuzarte.scrcpyforandroid.services.blackout.PaymentBlackoutCoordinator
+import io.github.miuzarte.scrcpyforandroid.services.lockwake.ControlledLockWakeController
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveService
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
@@ -328,6 +329,7 @@ object NativeCoreFacade {
     suspend fun onScrcpySessionStopped() = sessionLifecycleMutex.withLock {
         PaymentBlackoutCoordinator.onSessionStopped()
         runCatching { ProcessKeepAliveService.stop(AppRuntime.context) }
+        ControlledLockWakeController.resetEpisode("session_stopped")
         controller.releaseAll()
         scrcpyRef = null
         recordingSurfaceAttached = false
