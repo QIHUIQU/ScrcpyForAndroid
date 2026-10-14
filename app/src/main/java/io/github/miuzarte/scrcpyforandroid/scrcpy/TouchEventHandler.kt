@@ -9,7 +9,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
+
+private typealias ContentBounds = ViewportFit.ContentBounds
 
 /**
  * TouchEventHandler
@@ -22,6 +23,7 @@ class TouchEventHandler(
     private val coroutineScope: CoroutineScope,
     private val session: Scrcpy.Session.SessionInfo,
     private val touchAreaSize: IntSize,
+    private val stretchFill: Boolean = false,
     private val activePointerIds: LinkedHashSet<Int>,
     private val activePointerPositions: LinkedHashMap<Int, Offset>,
     private val activePointerDevicePositions: LinkedHashMap<Int, Pair<Int, Int>>,
@@ -98,36 +100,13 @@ class TouchEventHandler(
                 event.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE
     }
 
-    private data class ContentBounds(
-        val width: Float,
-        val height: Float,
-        val left: Float,
-        val top: Float,
-    )
-
     private fun calculateContentBounds(): ContentBounds {
-        val sessionAspect = if (session.height == 0) {
-            16f / 9f
-        } else {
-            session.width.toFloat() / session.height.toFloat()
-        }
-        val containerWidth = touchAreaSize.width.toFloat()
-        val containerHeight = touchAreaSize.height.toFloat()
-        val containerAspect = containerWidth / containerHeight
-
-        val contentWidth: Float
-        val contentHeight: Float
-        if (sessionAspect > containerAspect) {
-            contentWidth = containerWidth
-            contentHeight = containerWidth / sessionAspect
-        } else {
-            contentHeight = containerHeight
-            contentWidth = containerHeight * sessionAspect
-        }
-        val contentLeft = (containerWidth - contentWidth) / 2f
-        val contentTop = (containerHeight - contentHeight) / 2f
-
-        return ContentBounds(contentWidth, contentHeight, contentLeft, contentTop)
+        return ViewportFit.contentBounds(
+            containerWidth = touchAreaSize.width.toFloat(),
+            containerHeight = touchAreaSize.height.toFloat(),
+            sessionAspect = ViewportFit.sessionAspectOf(session.width, session.height),
+            stretch = stretchFill,
+        )
     }
 
     private fun isInsideContent(rawX: Float, rawY: Float, bounds: ContentBounds): Boolean {
@@ -136,13 +115,7 @@ class TouchEventHandler(
     }
 
     private fun mapToDevice(rawX: Float, rawY: Float, bounds: ContentBounds): Pair<Int, Int> {
-        val normalizedX = ((rawX - bounds.left) / bounds.width).coerceIn(0f, 1f)
-        val normalizedY = ((rawY - bounds.top) / bounds.height).coerceIn(0f, 1f)
-        val x = (normalizedX * (session.width - 1).coerceAtLeast(0)).roundToInt()
-            .coerceIn(0, (session.width - 1).coerceAtLeast(0))
-        val y = (normalizedY * (session.height - 1).coerceAtLeast(0)).roundToInt()
-            .coerceIn(0, (session.height - 1).coerceAtLeast(0))
-        return x to y
+        return ViewportFit.mapToDevice(rawX, rawY, bounds, session.width, session.height)
     }
 
     private fun getPointerLabel(pointerId: Int): Int {

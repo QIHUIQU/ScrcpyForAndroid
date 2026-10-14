@@ -662,6 +662,7 @@ internal fun DeviceTabPage(
             modifier = modifier,
             sessionInfo = sessionInfo,
             previewHeightDp = asBundle.devicePreviewCardHeightDp.coerceAtLeast(120),
+            stretchFill = asBundle.stretchFill,
             onOpenFullscreen = ::openFullscreenControl,
             directControlEnabled = directControlEnabled,
             onInjectTouch = { action, pointerId, x, y, pressure, actionButton, buttons ->

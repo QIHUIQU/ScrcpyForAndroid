@@ -225,6 +225,7 @@ internal fun PreviewCard(
     modifier: Modifier,
     sessionInfo: Scrcpy.Session.SessionInfo?,
     previewHeightDp: Int,
+    stretchFill: Boolean = false,
     onOpenFullscreen: () -> Unit,
     directControlEnabled: Boolean = false,
     onInjectTouch: (suspend (
@@ -272,6 +273,7 @@ internal fun PreviewCard(
         directControlEnabled,
         sessionInfo,
         touchAreaSize,
+        stretchFill,
         onInjectTouch,
         onBackOrScreenOn,
     ) {
@@ -281,6 +283,7 @@ internal fun PreviewCard(
             coroutineScope = coroutineScope,
             session = sessionInfo,
             touchAreaSize = touchAreaSize,
+            stretchFill = stretchFill,
             activePointerIds = activePointerIds,
             activePointerPositions = activePointerPositions,
             activePointerDevicePositions = activePointerDevicePositions,
@@ -359,7 +362,9 @@ internal fun PreviewCard(
                     else sessionInfo.width.toFloat() / sessionInfo.height.toFloat()
 
                 val containerAspect = maxWidth.value / maxHeight.value
-                val fittedModifier = if (sessionAspect > containerAspect) {
+                val fittedModifier = if (stretchFill) {
+                    Modifier.fillMaxSize()
+                } else if (sessionAspect > containerAspect) {
                     Modifier
                         .fillMaxWidth()
                         .aspectRatio(sessionAspect)

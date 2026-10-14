@@ -508,6 +508,16 @@ fun SettingsPage(
                     },
                 )
                 SwitchPreference(
+                    title = stringResource(R.string.pref_title_stretch_fill),
+                    summary = stringResource(R.string.pref_summary_stretch_fill),
+                    checked = asBundle.stretchFill,
+                    onCheckedChange = {
+                        asBundle = asBundle.copy(
+                            stretchFill = it,
+                        )
+                    },
+                )
+                SwitchPreference(
                     title = stringResource(R.string.pref_title_show_virtual_buttons),
                     summary = stringResource(R.string.pref_summary_show_virtual_buttons),
                     checked = asBundle.showFullscreenVirtualButtons,

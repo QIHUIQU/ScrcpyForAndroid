@@ -199,6 +199,8 @@
     <string name="pref_summary_downsize_on_decode_error">当本机解码器不支持当前视频分辨率时，自动以较低的 max_size 重启会话，关闭后仅提示错误</string>
     <string name="pref_title_debug_info">启用调试信息</string>
     <string name="pref_summary_debug_info">在全屏界面悬浮显示分辨率、帧率和触点信息</string>
+    <string name="pref_title_stretch_fill">全屏模式拉伸填充画面</string>
+    <string name="pref_summary_stretch_fill">画面拉伸铺满全屏（关闭则保持比例显示，两侧留黑边）</string>
     <string name="pref_title_hide_simple_settings">设备页隐藏简单设置项</string>
     <string name="pref_summary_hide_simple_settings">启用后设备页仅保留更多参数、所有应用、最近任务和启动/停止按钮</string>
     <string name="pref_title_preview_card_on_top">使预览卡显示在配置卡上方</string>

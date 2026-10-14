@@ -175,6 +175,10 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
             booleanPreferencesKey("fullscreen_control_back_to_device"),
             false,
         )
+        val STRETCH_FILL = Pair(
+            booleanPreferencesKey("stretch_fill"),
+            true,
+        )
         val SHOW_FULLSCREEN_VIRTUAL_BUTTONS = Pair(
             booleanPreferencesKey("show_fullscreen_virtual_buttons"),
             true,
@@ -352,6 +356,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         // Fullscreen
         val fullscreenControlIgnoreSystemRotationLock: Boolean,
         val fullscreenControlBackToDevice: Boolean,
+        val stretchFill: Boolean,
         val showFullscreenVirtualButtons: Boolean,
         val fullscreenVirtualButtonHeightDp: Int,
         val fullscreenVirtualButtonDock: String,
@@ -421,6 +426,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         // Fullscreen
         bundleField(FULLSCREEN_CONTROL_IGNORE_SYSTEM_ROTATION_LOCK) { it.fullscreenControlIgnoreSystemRotationLock },
         bundleField(FULLSCREEN_CONTROL_BACK_TO_DEVICE) { it.fullscreenControlBackToDevice },
+        bundleField(STRETCH_FILL) { it.stretchFill },
         bundleField(SHOW_FULLSCREEN_VIRTUAL_BUTTONS) { it.showFullscreenVirtualButtons },
         bundleField(FULLSCREEN_VIRTUAL_BUTTON_HEIGHT_DP) { it.fullscreenVirtualButtonHeightDp },
         bundleField(FULLSCREEN_VIRTUAL_BUTTON_DOCK) { it.fullscreenVirtualButtonDock },
@@ -492,6 +498,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         fullscreenControlIgnoreSystemRotationLock =
             preferences.read(FULLSCREEN_CONTROL_IGNORE_SYSTEM_ROTATION_LOCK),
         fullscreenControlBackToDevice = preferences.read(FULLSCREEN_CONTROL_BACK_TO_DEVICE),
+        stretchFill = preferences.read(STRETCH_FILL),
         showFullscreenVirtualButtons = preferences.read(SHOW_FULLSCREEN_VIRTUAL_BUTTONS),
         fullscreenVirtualButtonHeightDp = preferences.read(FULLSCREEN_VIRTUAL_BUTTON_HEIGHT_DP),
         fullscreenVirtualButtonDock = preferences.read(FULLSCREEN_VIRTUAL_BUTTON_DOCK),

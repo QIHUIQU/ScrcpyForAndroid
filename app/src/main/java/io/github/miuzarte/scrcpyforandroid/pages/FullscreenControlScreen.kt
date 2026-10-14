@@ -434,6 +434,7 @@ fun FullscreenControlScreen(
                 imeRequestToken = imeRequestToken,
                 enableBackHandler = false,
                 interactive = !isInPip,
+                stretchFill = asBundle.stretchFill,
                 onVideoBoundsInWindowChanged = onVideoBoundsInWindowChanged,
                 onImeCommitText = ::commitImeText,
                 onInjectTouch = { action, pointerId, x, y, pressure, actionButton, buttons ->
@@ -647,6 +648,7 @@ fun FullscreenControlPage(
     imeRequestToken: Int = 0,
     enableBackHandler: Boolean = true,
     interactive: Boolean = true,
+    stretchFill: Boolean = false,
     onVideoBoundsInWindowChanged: (Rect?) -> Unit = {},
     onImeCommitText: suspend (String) -> Unit,
     onInjectTouch: suspend (
@@ -676,11 +678,12 @@ fun FullscreenControlPage(
     var activeTouchDebug by remember { mutableStateOf("") }
     var gamepadDebug by remember { mutableStateOf("") }
 
-    val touchEventHandler = remember(session, touchAreaSize) {
+    val touchEventHandler = remember(session, touchAreaSize, stretchFill) {
         TouchEventHandler(
             coroutineScope = coroutineScope,
             session = session,
             touchAreaSize = touchAreaSize,
+            stretchFill = stretchFill,
             activePointerIds = activePointerIds,
             activePointerPositions = activePointerPositions,
             activePointerDevicePositions = activePointerDevicePositions,
@@ -763,7 +766,9 @@ fun FullscreenControlPage(
             modifier = Modifier
                 .align(Alignment.Center)
                 .then(
-                    if (sessionAspect > (maxWidth.value / maxHeight.value))
+                    if (stretchFill)
+                        Modifier.fillMaxSize()
+                    else if (sessionAspect > (maxWidth.value / maxHeight.value))
                         Modifier
                             .fillMaxWidth()
                             .aspectRatio(sessionAspect)
