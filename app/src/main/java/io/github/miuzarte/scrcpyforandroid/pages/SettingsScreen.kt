@@ -32,6 +32,8 @@ import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.R
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
 import io.github.miuzarte.scrcpyforandroid.services.blackout.PaymentBlackoutConfig
+import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveScheduler
+import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveService
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.i18n.AppLocale
 import io.github.miuzarte.scrcpyforandroid.nativecore.DirectAdbTransport
@@ -989,6 +991,22 @@ fun SettingsPage(
                             .recoverCatching { context.startActivity(requestIntent) }
                             .recoverCatching { context.startActivity(fallbackIntent) }
                             .onFailure { AppRuntime.snackbar(R.string.pref_cannot_open_settings) }
+                    },
+                )
+                SwitchPreference(
+                    title = stringResource(R.string.pref_title_process_keep_alive),
+                    summary = stringResource(R.string.pref_summary_process_keep_alive),
+                    checked = asBundle.processKeepAliveEnabled,
+                    onCheckedChange = {
+                        asBundle = asBundle.copy(
+                            processKeepAliveEnabled = it,
+                        )
+                        if (it) {
+                            ProcessKeepAliveScheduler.ensureScheduled(context)
+                        } else {
+                            ProcessKeepAliveScheduler.cancel(context)
+                            ProcessKeepAliveService.stop(context)
+                        }
                     },
                 )
                 Column(

@@ -8,6 +8,7 @@ import io.github.miuzarte.scrcpyforandroid.nativecore.VideoDecoderController
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
 import io.github.miuzarte.scrcpyforandroid.services.blackout.PaymentBlackoutCoordinator
+import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveService
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
@@ -198,6 +199,10 @@ object NativeCoreFacade {
         packetCount = 0
         renderer.setGamma(Storage.appSettings.bundleState.value.gammaValue)
         PaymentBlackoutCoordinator.onSessionStarted()
+        if (Storage.appSettings.bundleState.value.processKeepAliveEnabled) {
+            runCatching { ProcessKeepAliveService.start(AppRuntime.context) }
+                .onFailure { Log.w(TAG, "keep-alive FGS start failed", it) }
+        }
         sessionMgr.attachVideoConsumer { packet ->
             cacheAndFeed(packet)
         }
@@ -258,6 +263,7 @@ object NativeCoreFacade {
      */
     suspend fun onScrcpySessionStopped() = sessionLifecycleMutex.withLock {
         PaymentBlackoutCoordinator.onSessionStopped()
+        runCatching { ProcessKeepAliveService.stop(AppRuntime.context) }
         controller.releaseAll()
         scrcpyRef = null
         recordingSurfaceAttached = false

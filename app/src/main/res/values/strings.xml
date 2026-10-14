@@ -218,6 +218,11 @@
     <string name="pref_summary_pay_blackout_fallback">Safety fallback: if the controlled device stays locked and nothing triggers a blackout, turn its screen off once after the timeout (default on)</string>
     <string name="pref_title_pay_blackout_fallback_sec">Fallback timeout</string>
     <string name="pref_summary_pay_blackout_fallback_sec">Never earlier than 30 s (options 30/60/120/300, default 30)</string>
+    <string name="pref_title_process_keep_alive">Background keep-alive</string>
+    <string name="pref_summary_process_keep_alive">Keep the app process alive during remote sessions (foreground service + periodic self-check; pair with unrestricted battery usage above)</string>
+    <string name="keepalive_channel_name">Keep-alive</string>
+    <string name="keepalive_notification_title">Remote session active</string>
+    <string name="keepalive_notification_text">Keeping the app alive so the remote-control session is not killed in background</string>
     <string name="pref_title_hide_simple_settings">Hide simple settings on device page</string>
     <string name="pref_summary_hide_simple_settings">When enabled, the device page only keeps More parameters, All apps, Recent tasks, and Start/Stop buttons</string>
     <string name="pref_title_preview_card_on_top">Show preview card above config</string>

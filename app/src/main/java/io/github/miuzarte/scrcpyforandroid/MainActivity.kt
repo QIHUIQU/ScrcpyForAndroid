@@ -19,6 +19,8 @@ import io.github.miuzarte.scrcpyforandroid.password.hasAuthenticatedOrigin
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.AppScreenOn
 import io.github.miuzarte.scrcpyforandroid.services.UnlockJumpController
+import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveScheduler
+import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.runBlocking
 
 // 生物认证需要 FragmentActivity
@@ -32,6 +34,9 @@ class MainActivity: LocalizedActivity() {
         AppRuntime.init(applicationContext)
         AppScreenOn.register(window)
         UnlockJumpController.register(applicationContext)
+        if (Storage.appSettings.bundleState.value.processKeepAliveEnabled) {
+            ProcessKeepAliveScheduler.ensureScheduled(applicationContext)
+        }
 
         runBlocking {
             PasswordRepository.refresh()
@@ -45,6 +50,7 @@ class MainActivity: LocalizedActivity() {
 
         // 请求附近设备/局域网 mDNS 发现所需的运行时权限
         requestNearbyDevicePermissions()
+        requestNotificationPermissionIfNeeded()
 
         enableEdgeToEdge()
 
@@ -88,6 +94,21 @@ class MainActivity: LocalizedActivity() {
      * 请求 Android 17+ 本地网络访问运行时权限
      * 授权后 NsdManager 才能正常扫描局域网 ADB 设备
      */
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (!granted) {
+                Log.w("MainActivity", "通知权限被拒绝：保活服务仍运行，但通知不可见")
+            }
+        }
+
+    /** Android 13+ 通知权限（保活前台服务通知可见性；拒绝不阻断） */
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val permission = Manifest.permission.POST_NOTIFICATIONS
+        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) return
+        notificationPermissionLauncher.launch(permission)
+    }
+
     private fun requestNearbyDevicePermissions() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.CINNAMON_BUN) return
 

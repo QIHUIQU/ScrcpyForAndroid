@@ -167,6 +167,10 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
             intPreferencesKey("pay_blackout_fallback_sec"),
             PaymentBlackoutConfig.FALLBACK_THRESHOLD_DEFAULT_SEC,
         )
+        val PROCESS_KEEP_ALIVE_ENABLED = Pair(
+            booleanPreferencesKey("process_keep_alive_enabled"),
+            true,
+        )
         val FULLSCREEN_DEBUG_INFO = Pair(
             booleanPreferencesKey("fullscreen_debug_info"),
             false,
@@ -374,6 +378,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         val payBlackoutDelaySec: Int,
         val payBlackoutFallbackEnabled: Boolean,
         val payBlackoutFallbackSec: Int,
+        val processKeepAliveEnabled: Boolean,
         val fullscreenDebugInfo: Boolean,
         val hideSimpleConfigItems: Boolean,
         val previewCardOnTop: Boolean,
@@ -449,6 +454,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         bundleField(PAY_BLACKOUT_DELAY_SEC) { it.payBlackoutDelaySec },
         bundleField(PAY_BLACKOUT_FALLBACK_ENABLED) { it.payBlackoutFallbackEnabled },
         bundleField(PAY_BLACKOUT_FALLBACK_SEC) { it.payBlackoutFallbackSec },
+        bundleField(PROCESS_KEEP_ALIVE_ENABLED) { it.processKeepAliveEnabled },
         bundleField(FULLSCREEN_DEBUG_INFO) { it.fullscreenDebugInfo },
         bundleField(HIDE_SIMPLE_CONFIG_ITEMS) { it.hideSimpleConfigItems },
         bundleField(PREVIEW_CARD_ON_TOP) { it.previewCardOnTop },
@@ -525,6 +531,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         payBlackoutDelaySec = preferences.read(PAY_BLACKOUT_DELAY_SEC),
         payBlackoutFallbackEnabled = preferences.read(PAY_BLACKOUT_FALLBACK_ENABLED),
         payBlackoutFallbackSec = preferences.read(PAY_BLACKOUT_FALLBACK_SEC),
+        processKeepAliveEnabled = preferences.read(PROCESS_KEEP_ALIVE_ENABLED),
         fullscreenDebugInfo = preferences.read(FULLSCREEN_DEBUG_INFO),
         hideSimpleConfigItems = preferences.read(HIDE_SIMPLE_CONFIG_ITEMS),
         previewCardOnTop = preferences.read(PREVIEW_CARD_ON_TOP),
