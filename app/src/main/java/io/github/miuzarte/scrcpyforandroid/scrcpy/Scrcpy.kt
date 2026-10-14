@@ -426,6 +426,15 @@ class Scrcpy(
         session.scanFile(path)
     }
 
+    /**
+     * Ask the server encoder to emit a fresh config + IDR key frame immediately
+     * (RESET_VIDEO control message). Used to shorten artifact recovery after a dropped
+     * packet: without it, the client waits for the regular i-frame interval (default 10 s).
+     */
+    suspend fun resetVideo() = withContext(Dispatchers.IO) {
+        session.resetVideo()
+    }
+
     suspend fun injectTouch(
         action: Int,
         pointerId: Long,
@@ -1363,6 +1372,10 @@ class Scrcpy(
             withControlWriter("startApp") { startApp(name) }
         }
 
+        suspend fun resetVideo() = mutex.withLock {
+            withControlWriter("resetVideo") { resetVideo() }
+        }
+
         suspend fun resizeDisplay(width: Int, height: Int) = mutex.withLock {
             withControlWriter("resizeDisplay") { resizeDisplay(width, height) }
         }
@@ -1839,6 +1852,12 @@ class Scrcpy(
                 output.writeByte(TYPE_START_APP)
                 output.writeByte(bytes.size)
                 output.write(bytes)
+                output.flush()
+            }
+
+            @Synchronized
+            fun resetVideo() {
+                output.writeByte(TYPE_RESET_VIDEO)
                 output.flush()
             }
 

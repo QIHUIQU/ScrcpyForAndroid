@@ -52,6 +52,13 @@ internal class VideoDecoderController(
     private var latestConfigPacket: CachedPacket? = null
 
     /**
+     * Forwarded from the active decoder: invoked when a packet had to be dropped due to
+     * input starvation. See [MediaCodecVideoDecoder.onPacketDropped].
+     */
+    @Volatile
+    var onPacketDropped: (() -> Unit)? = null
+
+    /**
      * The session info currently associated with the decoder (or the most recently released
      * one). Returns null if no session has ever been bound.
      *
@@ -298,6 +305,7 @@ internal class VideoDecoderController(
             // and can trigger downgrade/restart.
             return
         }
+        newDecoder.onPacketDropped = { onPacketDropped?.invoke() }
         decoder = newDecoder
         replayBootstrapPackets(newDecoder)
     }

@@ -40,6 +40,18 @@ class MediaCodecVideoDecoder(
     private var outCount = 0L
     private var fpsWindowStartNs = System.nanoTime()
     private var fpsWindowFrameCount = 0
+    private val droppedPacketCount = java.util.concurrent.atomic.AtomicLong(0L)
+
+    /**
+     * Invoked (on the feeding thread) whenever a packet had to be dropped because no
+     * MediaCodec input buffer became available. Dropping a non-key frame corrupts the
+     * H.264/H.265 reference chain until the next key frame, so callers should react
+     * (e.g. request a fresh IDR via the RESET_VIDEO control message).
+     */
+    @Volatile
+    var onPacketDropped: (() -> Unit)? = null
+
+    fun droppedPackets(): Long = droppedPacketCount.get()
 
     @Volatile
     private var released = false
@@ -103,10 +115,19 @@ class MediaCodecVideoDecoder(
         }
         runCatching {
             var inputIndex = codec.dequeueInputBuffer(INPUT_TIMEOUT_US)
-            if (inputIndex < 0 && (isConfig || isKeyFrame)) {
-                // Retry for critical packets to reduce startup stalls on av1/hevc.
-                drainOutput()
-                inputIndex = codec.dequeueInputBuffer(CRITICAL_INPUT_TIMEOUT_US)
+            if (inputIndex < 0) {
+                // Never skip a frame while the decoder is merely behind: this mirrors the
+                // original EasyControl design, whose queue+pairing feed path has no drop
+                // path at all. Wait for a buffer instead of dropping (dropping a non-key
+                // frame corrupts the reference chain until the next key frame). Bounded by
+                // MAX_INPUT_WAIT_US so a wedged decoder cannot stall the reader forever;
+                // if the bound is exceeded we drop + request a fresh IDR (RESET_VIDEO).
+                var waitedUs = INPUT_TIMEOUT_US
+                while (inputIndex < 0 && waitedUs < MAX_INPUT_WAIT_US) {
+                    drainOutput()
+                    inputIndex = codec.dequeueInputBuffer(CRITICAL_INPUT_TIMEOUT_US)
+                    waitedUs += CRITICAL_INPUT_TIMEOUT_US
+                }
             }
             if (inputIndex >= 0) {
                 val inBuf = codec.getInputBuffer(inputIndex)
@@ -128,12 +149,12 @@ class MediaCodecVideoDecoder(
                     )
                 }
             } else {
-                if (isConfig || isKeyFrame) {
-                    Log.w(
-                        TAG,
-                        "drop critical packet: mime=$decoderMime size=${data.size} key=$isKeyFrame cfg=$isConfig",
-                    )
-                }
+                val dropped = droppedPacketCount.incrementAndGet()
+                Log.w(
+                    TAG,
+                    "drop packet (input starved): mime=$decoderMime size=${data.size} key=$isKeyFrame cfg=$isConfig droppedTotal=$dropped",
+                )
+                onPacketDropped?.invoke()
             }
             drainOutput()
         }.onFailure {
@@ -246,6 +267,9 @@ class MediaCodecVideoDecoder(
         private const val MIME_AVC = "video/avc"
         private const val INPUT_TIMEOUT_US = 10_000L
         private const val CRITICAL_INPUT_TIMEOUT_US = 50_000L
+
+        /** Upper bound for waiting on a decoder input buffer before giving up (drop + RESET_VIDEO). */
+        private const val MAX_INPUT_WAIT_US = 2_000_000L
         private const val OUTPUT_TIMEOUT_US = 0L
         private const val FPS_WINDOW_NS = 1_000_000_000L
     }

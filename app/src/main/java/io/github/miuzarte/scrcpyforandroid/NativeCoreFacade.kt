@@ -50,6 +50,7 @@ object NativeCoreFacade {
 
     @Volatile
     private var packetCount: Long = 0
+    private val lastResetVideoRequestMs = java.util.concurrent.atomic.AtomicLong(0L)
 
     // Cached ClientOptions for session restart (downgrade / error recovery)
     @Volatile
@@ -191,6 +192,24 @@ object NativeCoreFacade {
         sessionMgr.attachVideoConsumer { packet ->
             cacheAndFeed(packet)
         }
+        controller.onPacketDropped = { requestResetVideoThrottled() }
+    }
+
+    /**
+     * A video packet was dropped because no decoder input buffer was available.
+     * Dropping a P-frame corrupts the reference chain until the next key frame, so ask
+     * the server for an immediate fresh IDR (RESET_VIDEO), throttled to avoid spamming
+     * the encoder when the decoder is persistently overloaded.
+     */
+    private fun requestResetVideoThrottled() {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val last = lastResetVideoRequestMs.get()
+        if (now - last < RESET_VIDEO_MIN_INTERVAL_MS) return
+        if (!lastResetVideoRequestMs.compareAndSet(last, now)) return
+        lifecycleScope.launch {
+            runCatching { scrcpyRef?.resetVideo() }
+                .onFailure { Log.w(TAG, "resetVideo request failed", it) }
+        }
     }
 
     /**
@@ -323,4 +342,5 @@ object NativeCoreFacade {
     }
 
     private const val TAG = "NativeCoreFacade"
+    private const val RESET_VIDEO_MIN_INTERVAL_MS = 500L
 }
