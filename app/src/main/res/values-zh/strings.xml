@@ -206,6 +206,12 @@
     <string name="vb_gamma">伽马值</string>
     <string name="pref_title_auto_jump">解锁后自动跳回远控界面</string>
     <string name="pref_summary_auto_jump">本机解锁且有活跃会话时自动回到远控画面（后台启动被系统限制时，打开 App 会直达串流界面）</string>
+    <string name="pref_title_pay_blackout_delay">用完黑屏延迟</string>
+    <string name="pref_summary_pay_blackout_delay">回到控制端操作后，延迟多久关闭被控端屏幕（0-30 秒，默认 0 即立即）</string>
+    <string name="pref_title_pay_blackout_fallback">黑屏兜底倒计时</string>
+    <string name="pref_summary_pay_blackout_fallback">兜底保护：被控端锁屏后若一直未被触发黑屏，超时后自动关屏一次（默认开启）</string>
+    <string name="pref_title_pay_blackout_fallback_sec">兜底超时</string>
+    <string name="pref_summary_pay_blackout_fallback_sec">不得早于 30 秒（可选 30/60/120/300，默认 30）</string>
     <string name="pref_title_hide_simple_settings">设备页隐藏简单设置项</string>
     <string name="pref_summary_hide_simple_settings">启用后设备页仅保留更多参数、所有应用、最近任务和启动/停止按钮</string>
     <string name="pref_title_preview_card_on_top">使预览卡显示在配置卡上方</string>

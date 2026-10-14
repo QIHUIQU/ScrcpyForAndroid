@@ -7,6 +7,7 @@ import io.github.miuzarte.scrcpyforandroid.nativecore.PersistentVideoRenderer
 import io.github.miuzarte.scrcpyforandroid.nativecore.VideoDecoderController
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
+import io.github.miuzarte.scrcpyforandroid.services.blackout.PaymentBlackoutCoordinator
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
@@ -196,6 +197,7 @@ object NativeCoreFacade {
         }
         packetCount = 0
         renderer.setGamma(Storage.appSettings.bundleState.value.gammaValue)
+        PaymentBlackoutCoordinator.onSessionStarted()
         sessionMgr.attachVideoConsumer { packet ->
             cacheAndFeed(packet)
         }
@@ -255,6 +257,7 @@ object NativeCoreFacade {
      * Cleans up decoders and resets state.
      */
     suspend fun onScrcpySessionStopped() = sessionLifecycleMutex.withLock {
+        PaymentBlackoutCoordinator.onSessionStopped()
         controller.releaseAll()
         scrcpyRef = null
         recordingSurfaceAttached = false

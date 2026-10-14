@@ -17,6 +17,7 @@ import io.github.miuzarte.scrcpyforandroid.nativecore.ScrcpyAudioPlayer
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.*
 import io.github.miuzarte.scrcpyforandroid.services.*
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger.logEvent
+import io.github.miuzarte.scrcpyforandroid.services.blackout.PaymentBlackoutCoordinator
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -406,6 +407,7 @@ class Scrcpy(
         repeat: Int = 0,
         metaState: Int = 0,
     ) = withContext(Dispatchers.IO) {
+        PaymentBlackoutCoordinator.onControlOp()
         session.injectKeycode(
             action = action,
             keycode = keycode,
@@ -415,6 +417,7 @@ class Scrcpy(
     }
 
     suspend fun injectText(text: String) = withContext(Dispatchers.IO) {
+        PaymentBlackoutCoordinator.onControlOp()
         session.injectText(text)
     }
 
@@ -435,6 +438,11 @@ class Scrcpy(
         session.resetVideo()
     }
 
+    /** Turn the controlled device's screen on/off without locking it (PB-1 blackout action). */
+    suspend fun setDisplayPower(on: Boolean) = withContext(Dispatchers.IO) {
+        session.setDisplayPower(on)
+    }
+
     suspend fun injectTouch(
         action: Int,
         pointerId: Long,
@@ -446,6 +454,7 @@ class Scrcpy(
         actionButton: Int = 0,
         buttons: Int = 0,
     ) = withContext(Dispatchers.IO) {
+        PaymentBlackoutCoordinator.onControlOp()
         session.injectTouch(
             action = action,
             pointerId = pointerId,
@@ -468,6 +477,7 @@ class Scrcpy(
         vScroll: Float,
         buttons: Int,
     ) = withContext(Dispatchers.IO) {
+        PaymentBlackoutCoordinator.onControlOp()
         session.injectScroll(
             x = x,
             y = y,

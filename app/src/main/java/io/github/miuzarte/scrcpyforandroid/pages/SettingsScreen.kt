@@ -31,6 +31,7 @@ import io.github.miuzarte.scrcpyforandroid.LockscreenPasswordActivity
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.R
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
+import io.github.miuzarte.scrcpyforandroid.services.blackout.PaymentBlackoutConfig
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.i18n.AppLocale
 import io.github.miuzarte.scrcpyforandroid.nativecore.DirectAdbTransport
@@ -561,6 +562,86 @@ fun SettingsPage(
                         asBundle = asBundle.copy(
                             autoJumpOnUnlock = it,
                         )
+                    },
+                )
+                ArrowSlider(
+                    title = stringResource(R.string.pref_title_pay_blackout_delay),
+                    summary = stringResource(R.string.pref_summary_pay_blackout_delay),
+                    value = asBundle.payBlackoutDelaySec.toFloat(),
+                    onValueChange = {
+                        asBundle = asBundle.copy(
+                            payBlackoutDelaySec = it.roundToInt().coerceIn(
+                                PaymentBlackoutConfig.DELAY_MIN_SEC,
+                                PaymentBlackoutConfig.DELAY_MAX_SEC,
+                            ),
+                        )
+                    },
+                    valueRange = PaymentBlackoutConfig.DELAY_MIN_SEC.toFloat()..
+                        PaymentBlackoutConfig.DELAY_MAX_SEC.toFloat(),
+                    steps = PaymentBlackoutConfig.DELAY_MAX_SEC - PaymentBlackoutConfig.DELAY_MIN_SEC - 1,
+                    unit = "s",
+                    displayFormatter = { it.roundToInt().toString() },
+                    inputInitialValue = asBundle.payBlackoutDelaySec.toString(),
+                    inputFilter = { it.filter(Char::isDigit) },
+                    inputValueRange = 0f..30f,
+                    onInputConfirm = { input ->
+                        input.toIntOrNull()?.let {
+                            asBundle = asBundle.copy(
+                                payBlackoutDelaySec = it.coerceIn(
+                                    PaymentBlackoutConfig.DELAY_MIN_SEC,
+                                    PaymentBlackoutConfig.DELAY_MAX_SEC,
+                                ),
+                            )
+                        }
+                    },
+                )
+                SwitchPreference(
+                    title = stringResource(R.string.pref_title_pay_blackout_fallback),
+                    summary = stringResource(R.string.pref_summary_pay_blackout_fallback),
+                    checked = asBundle.payBlackoutFallbackEnabled,
+                    onCheckedChange = {
+                        asBundle = asBundle.copy(
+                            payBlackoutFallbackEnabled = it,
+                        )
+                    },
+                )
+                ArrowSlider(
+                    title = stringResource(R.string.pref_title_pay_blackout_fallback_sec),
+                    summary = stringResource(R.string.pref_summary_pay_blackout_fallback_sec),
+                    value = PaymentBlackoutConfig.FALLBACK_THRESHOLD_OPTIONS_SEC
+                        .indexOf(asBundle.payBlackoutFallbackSec)
+                        .coerceAtLeast(0)
+                        .toFloat(),
+                    onValueChange = {
+                        val index = it.roundToInt().coerceIn(
+                            0,
+                            PaymentBlackoutConfig.FALLBACK_THRESHOLD_OPTIONS_SEC.size - 1,
+                        )
+                        asBundle = asBundle.copy(
+                            payBlackoutFallbackSec =
+                                PaymentBlackoutConfig.FALLBACK_THRESHOLD_OPTIONS_SEC[index],
+                        )
+                    },
+                    valueRange = 0f..(PaymentBlackoutConfig.FALLBACK_THRESHOLD_OPTIONS_SEC.size - 1).toFloat(),
+                    steps = PaymentBlackoutConfig.FALLBACK_THRESHOLD_OPTIONS_SEC.size - 2,
+                    unit = "s",
+                    displayFormatter = {
+                        PaymentBlackoutConfig.FALLBACK_THRESHOLD_OPTIONS_SEC[
+                            it.roundToInt().coerceIn(
+                                0,
+                                PaymentBlackoutConfig.FALLBACK_THRESHOLD_OPTIONS_SEC.size - 1,
+                            )
+                        ].toString()
+                    },
+                    inputInitialValue = asBundle.payBlackoutFallbackSec.toString(),
+                    inputFilter = { it.filter(Char::isDigit) },
+                    inputValueRange = 0f..300f,
+                    onInputConfirm = { input ->
+                        input.toIntOrNull()?.let {
+                            asBundle = asBundle.copy(
+                                payBlackoutFallbackSec = PaymentBlackoutConfig.normalizeFallbackSec(it),
+                            )
+                        }
                     },
                 )
                 SwitchPreference(
