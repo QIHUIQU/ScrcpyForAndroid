@@ -14,6 +14,7 @@ import androidx.core.pip.BasicPictureInPicture
 import io.github.miuzarte.scrcpyforandroid.i18n.LocalizedActivity
 import io.github.miuzarte.scrcpyforandroid.pages.StreamScreen
 import io.github.miuzarte.scrcpyforandroid.services.AppScreenOn
+import io.github.miuzarte.scrcpyforandroid.services.AppVisibility
 import io.github.miuzarte.scrcpyforandroid.services.PictureInPictureActionReceiver
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -80,6 +81,13 @@ class StreamActivity: LocalizedActivity() {
             }
         )
          */
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 串流界面已在前台: 任何待消费的"回前台"事件视为已落地,
+        // 避免用户随后退出串流时被 MainActivity 的 re-entry 检查回弹
+        AppVisibility.consumeReentry()
     }
 
     fun configurePip(block: Builder.() -> Builder) =
