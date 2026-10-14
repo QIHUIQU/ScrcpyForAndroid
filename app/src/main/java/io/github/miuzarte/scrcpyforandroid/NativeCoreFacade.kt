@@ -105,8 +105,25 @@ object NativeCoreFacade {
     }
 
     /** Apply the manual video scale to the persistent renderer (volatile; used on the next frame). */
+    @Volatile private var currentVideoScale = 1f
+    fun videoScale(): Float = currentVideoScale
     fun setVideoScale(value: Float) {
-        renderer.setVideoScale(VideoScaleSettings.normalize(value))
+        val scale = VideoScaleSettings.normalize(value)
+        currentVideoScale = scale
+        renderer.setVideoScale(scale)
+        videoPanX = io.github.miuzarte.scrcpyforandroid.scrcpy.ViewportFit.clampPan(videoPanX, scale)
+        videoPanY = io.github.miuzarte.scrcpyforandroid.scrcpy.ViewportFit.clampPan(videoPanY, scale)
+        renderer.setVideoPan(videoPanX, -videoPanY)
+    }
+
+    @Volatile private var videoPanX = 0f
+    @Volatile private var videoPanY = 0f
+    fun videoPan(): Pair<Float, Float> = videoPanX to videoPanY
+    fun panVideoBy(dx: Float, dy: Float) {
+        val scale = currentVideoScale
+        videoPanX = io.github.miuzarte.scrcpyforandroid.scrcpy.ViewportFit.clampPan(videoPanX + dx, scale)
+        videoPanY = io.github.miuzarte.scrcpyforandroid.scrcpy.ViewportFit.clampPan(videoPanY + dy, scale)
+        renderer.setVideoPan(videoPanX, -videoPanY)
     }
 
     suspend fun attachVideoSurface(surface: Surface, primary: Boolean) {
@@ -269,7 +286,7 @@ object NativeCoreFacade {
         }
         packetCount = 0
         renderer.setGamma(Storage.appSettings.bundleState.value.gammaValue)
-        renderer.setVideoScale(Storage.appSettings.bundleState.value.videoScale)
+        setVideoScale(Storage.appSettings.bundleState.value.videoScale)
         PaymentBlackoutCoordinator.onSessionStarted()
         if (Storage.appSettings.bundleState.value.processKeepAliveEnabled) {
             runCatching { ProcessKeepAliveService.start(AppRuntime.context) }

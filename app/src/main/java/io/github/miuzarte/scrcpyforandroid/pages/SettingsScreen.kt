@@ -576,6 +576,12 @@ fun SettingsPage(
                         )
                     },
                 )
+                SwitchPreference(
+                    title = stringResource(R.string.pref_title_video_scale_locked),
+                    summary = stringResource(R.string.pref_summary_video_scale_locked),
+                    checked = asBundle.videoScaleLocked,
+                    onCheckedChange = { asBundle = asBundle.copy(videoScaleLocked = it) },
+                )
                 ArrowSlider(
                     title = stringResource(R.string.pref_title_pay_blackout_delay),
                     summary = stringResource(R.string.pref_summary_pay_blackout_delay),

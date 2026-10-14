@@ -650,6 +650,7 @@ fun FullscreenControlScreen(
                     )
                     Slider(
                         value = asBundle.videoScale,
+                        enabled = !asBundle.videoScaleLocked,
                         onValueChange = { value ->
                             asBundle = asBundle.copy(videoScale = value)
                             NativeCoreFacade.setVideoScale(value)
@@ -658,6 +659,7 @@ fun FullscreenControlScreen(
                         steps = VideoScaleSettings.SEEK_MAX - 1,
                     )
                     TextButton(
+                        enabled = !asBundle.videoScaleLocked,
                         text = stringResource(R.string.fullscreen_scale_reset),
                         onClick = {
                             asBundle = asBundle.copy(videoScale = VideoScaleSettings.DEFAULT_SCALE)

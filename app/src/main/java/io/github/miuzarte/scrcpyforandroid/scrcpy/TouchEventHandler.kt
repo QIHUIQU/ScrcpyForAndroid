@@ -63,12 +63,50 @@ class TouchEventHandler(
     private val eventPressures = HashMap<Int, Float>(10)
     private val justPressedPointerIds = HashSet<Int>(10)
     private val pendingMoveJobs = HashMap<Int, Job>(10)
+    private var panning = false
+    private var previousCentroid: Offset? = null
+
+    /**
+     * 双指平移（仅倍率 >1× 时启用）：双指拖拽整个画面，越界由 clampPan 钳制；
+     * 模型对齐 moonlight-android `ui/video/VideoZoomGestureOverlay.java` 的拖动语义。
+     * 单指保持远控触控；鼠标/触控笔事件直通（不走平移）。
+     */
+    private fun handlePanGesture(event: MotionEvent): Boolean {
+        val scale = io.github.miuzarte.scrcpyforandroid.NativeCoreFacade.videoScale()
+        if (scale <= 1f || isMouseLikeEvent(event)) return false
+        if (event.pointerCount >= 2) {
+            if (!panning) {
+                handleCancelAction(calculateContentBounds())
+                panning = true
+            }
+            val centroid = Offset((event.getX(0) + event.getX(1)) / 2f, (event.getY(0) + event.getY(1)) / 2f)
+            if (event.actionMasked == MotionEvent.ACTION_MOVE) {
+                previousCentroid?.let {
+                    val bounds = ViewportFit.contentBounds(touchAreaSize.width.toFloat(), touchAreaSize.height.toFloat(),
+                        ViewportFit.sessionAspectOf(session.width, session.height), stretchFill)
+                    io.github.miuzarte.scrcpyforandroid.NativeCoreFacade.panVideoBy(
+                        (centroid.x - it.x) / bounds.width, (centroid.y - it.y) / bounds.height)
+                }
+            }
+            previousCentroid = centroid
+            return true
+        }
+        if (panning) {
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                panning = false
+                previousCentroid = null
+            }
+            return true
+        }
+        return false
+    }
 
     fun handleMotionEvent(event: MotionEvent): Boolean {
         if (touchAreaSize.width == 0 || touchAreaSize.height == 0) {
             return true
         }
 
+        if (handlePanGesture(event)) return true
         val bounds = calculateContentBounds()
 
         if (isMouseLikeEvent(event)) {
@@ -101,12 +139,15 @@ class TouchEventHandler(
     }
 
     private fun calculateContentBounds(): ContentBounds {
-        return ViewportFit.contentBounds(
+        val base = ViewportFit.contentBounds(
             containerWidth = touchAreaSize.width.toFloat(),
             containerHeight = touchAreaSize.height.toFloat(),
             sessionAspect = ViewportFit.sessionAspectOf(session.width, session.height),
             stretch = stretchFill,
         )
+        val scale = io.github.miuzarte.scrcpyforandroid.NativeCoreFacade.videoScale()
+        val (panX, panY) = io.github.miuzarte.scrcpyforandroid.NativeCoreFacade.videoPan()
+        return ViewportFit.zoomedBounds(base, scale, panX, panY)
     }
 
     private fun isInsideContent(rawX: Float, rawY: Float, bounds: ContentBounds): Boolean {

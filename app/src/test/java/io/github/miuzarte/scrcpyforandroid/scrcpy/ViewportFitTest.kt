@@ -6,6 +6,26 @@ import org.junit.Test
 class ViewportFitTest {
     private val eps = 0.01f
 
+    @Test
+    fun zoomPanClampedAndTouchInverse() {
+        val base = ViewportFit.contentBounds(1000f, 800f, 1.25f, stretch = false)
+        assertEquals(0.5f, ViewportFit.clampPan(99f, 2f), eps)
+        assertEquals(-0.5f, ViewportFit.clampPan(-99f, 2f), eps)
+        assertEquals(0f, ViewportFit.clampPan(1f, 1f), eps)
+        val zoom = ViewportFit.zoomedBounds(base, 2f, 0.5f, -0.5f)
+        assertEquals(base.left, zoom.left, eps)
+        assertEquals(base.top - base.height, zoom.top, eps)
+        assertEquals(0 to 400, ViewportFit.mapToDevice(base.left, base.top, zoom, 1000, 800))
+    }
+
+    @Test
+    fun zoomRemainsTheSameOnResizedSurface() {
+        val a = ViewportFit.zoomedBounds(ViewportFit.ContentBounds(100f, 100f, 0f, 0f), 1.5f, 0.2f, 0f)
+        val b = ViewportFit.zoomedBounds(ViewportFit.ContentBounds(200f, 200f, 0f, 0f), 1.5f, 0.2f, 0f)
+        assertEquals(a.left * 2f, b.left, eps)
+        assertEquals(a.width * 2f, b.width, eps)
+    }
+
     // 16:9 content on a square container, keep-aspect (letterbox): top/bottom bars.
     @Test
     fun letterboxBoundsCentered() {

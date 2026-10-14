@@ -180,6 +180,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
             booleanPreferencesKey("controlled_lock_wake_enabled"),
             true,
         )
+        val VIDEO_SCALE_LOCKED = Pair(booleanPreferencesKey("video_scale_locked"), false)
         val FULLSCREEN_DEBUG_INFO = Pair(
             booleanPreferencesKey("fullscreen_debug_info"),
             false,
@@ -384,6 +385,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         val downsizeOnDecodeError: Boolean,
         val gammaValue: Float,
         val videoScale: Float,
+        val videoScaleLocked: Boolean,
         val autoJumpOnUnlock: Boolean,
         val payBlackoutDelaySec: Int,
         val payBlackoutFallbackEnabled: Boolean,
@@ -462,6 +464,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         bundleField(DOWNSIZE_ON_DECODE_ERROR) { it.downsizeOnDecodeError },
         bundleField(GAMMA_VALUE) { it.gammaValue },
         bundleField(VIDEO_SCALE) { it.videoScale },
+        bundleField(VIDEO_SCALE_LOCKED) { it.videoScaleLocked },
         bundleField(AUTO_JUMP_ON_UNLOCK) { it.autoJumpOnUnlock },
         bundleField(PAY_BLACKOUT_DELAY_SEC) { it.payBlackoutDelaySec },
         bundleField(PAY_BLACKOUT_FALLBACK_ENABLED) { it.payBlackoutFallbackEnabled },
@@ -541,6 +544,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         downsizeOnDecodeError = preferences.read(DOWNSIZE_ON_DECODE_ERROR),
         gammaValue = preferences.read(GAMMA_VALUE),
         videoScale = preferences.read(VIDEO_SCALE),
+        videoScaleLocked = preferences.read(VIDEO_SCALE_LOCKED),
         autoJumpOnUnlock = preferences.read(AUTO_JUMP_ON_UNLOCK),
         payBlackoutDelaySec = preferences.read(PAY_BLACKOUT_DELAY_SEC),
         payBlackoutFallbackEnabled = preferences.read(PAY_BLACKOUT_FALLBACK_ENABLED),

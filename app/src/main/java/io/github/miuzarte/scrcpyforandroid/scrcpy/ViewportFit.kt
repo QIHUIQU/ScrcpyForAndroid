@@ -54,6 +54,23 @@ object ViewportFit {
         )
     }
 
+    /**
+     * Same transform as the EGL viewport: pan is a fraction of the unscaled video box.
+     * 平移/钳制模型移植自 Axixi2233/moonlight-android 的
+     * `app/src/main/java/com/limelight/ui/video/VideoZoomController.java`
+     * （clampPanToVideoBounds / mapPointToNormalizedVideo，此处以中心枢轴改写）。
+     */
+    fun zoomedBounds(bounds: ContentBounds, scale: Float, panX: Float, panY: Float): ContentBounds =
+        ContentBounds(
+            bounds.width * scale, bounds.height * scale,
+            bounds.left + bounds.width * ((1f - scale) / 2f + panX),
+            bounds.top + bounds.height * ((1f - scale) / 2f + panY),
+        )
+
+    /** Pan limit = ±(scale-1)/2 per axis (centered pivot): the scaled content always covers the container. */
+    fun clampPan(pan: Float, scale: Float): Float =
+        pan.coerceIn(-(scale - 1f).coerceAtLeast(0f) / 2f, (scale - 1f).coerceAtLeast(0f) / 2f)
+
     /** Map a raw position inside [bounds] to device coordinates (0..width-1, 0..height-1). */
     fun mapToDevice(
         rawX: Float,

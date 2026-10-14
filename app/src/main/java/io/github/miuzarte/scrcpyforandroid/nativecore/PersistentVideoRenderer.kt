@@ -63,6 +63,8 @@ class PersistentVideoRenderer {
     /** 手动画面缩放倍率（EGL 视口居中缩放；见 [setVideoScale]）。 */
     @Volatile
     private var videoScaleValue: Float = 1f
+    @Volatile private var videoPanX: Float = 0f
+    @Volatile private var videoPanY: Float = 0f
 
     private val initLock = Any()
 
@@ -245,6 +247,13 @@ class PersistentVideoRenderer {
 
     fun setVideoScale(value: Float) {
         videoScaleValue = value
+        videoPanX = io.github.miuzarte.scrcpyforandroid.scrcpy.ViewportFit.clampPan(videoPanX, value)
+        videoPanY = io.github.miuzarte.scrcpyforandroid.scrcpy.ViewportFit.clampPan(videoPanY, value)
+    }
+
+    fun setVideoPan(x: Float, y: Float) {
+        videoPanX = x
+        videoPanY = y
     }
 
     fun release() {
@@ -458,8 +467,8 @@ class PersistentVideoRenderer {
         val viewportWidth = (width * scale).roundToInt().coerceAtLeast(1)
         val viewportHeight = (height * scale).roundToInt().coerceAtLeast(1)
         GLES20.glViewport(
-            (width - viewportWidth) / 2,
-            (height - viewportHeight) / 2,
+            (width - viewportWidth) / 2 + (videoPanX * width).roundToInt(),
+            (height - viewportHeight) / 2 + (videoPanY * height).roundToInt(),
             viewportWidth,
             viewportHeight,
         )
