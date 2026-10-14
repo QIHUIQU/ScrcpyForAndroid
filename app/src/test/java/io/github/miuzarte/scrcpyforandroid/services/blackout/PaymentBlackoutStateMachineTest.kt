@@ -54,16 +54,51 @@ class PaymentBlackoutStateMachineTest {
         assertFalse(m.onTick(12_000).applied())
     }
 
+    /**
+     * v8 semantics: a scheduled blackout is a commitment — a lock-state rewake
+     * observation during PENDING must NOT cancel the countdown (it fires when due).
+     * (Pre-v8 this cancelled the pending; that made any delay > 0 lose its
+     * blackout whenever the 5s poll observed UNLOCKED inside the window —
+     * e.g. stale observations or the user's own remote usage — while delay 0
+     * never had a window to lose. See flow/踩坑记录.md 2026-10-14.)
+     */
     @Test
-    fun rewakeCancelsPending() {
+    fun rewakeDuringPendingKeepsCountdown() {
         val m = PaymentBlackoutStateMachine(TestConfig(delay = 10))
         m.onControlledLocked(0)
         m.onControlOp(1_000)
+        val r = m.onControlledRewake(2_000)
+        assertEquals("noop:rewake_pending_keep", r.event())
+        assertEquals(PaymentBlackoutStateMachine.State.PENDING, m.state())
+        assertFalse(m.onTick(10_999).applied())
+        val r2 = m.onTick(11_000)
+        assertEquals("fire", r2.event())
+        assertTrue(r2.applied())
+        assertEquals(1, m.fireCount())
+    }
+
+    @Test
+    fun rewakeAfterFireStillResetsGateInArmed() {
+        val m = PaymentBlackoutStateMachine(TestConfig(delay = 0))
+        m.onControlledLocked(0)
+        m.onControlOp(1_000)
+        assertEquals(1, m.fireCount())
+        assertTrue(m.blacked())
         m.onControlledRewake(2_000)
-        assertFalse(m.onTick(12_000).applied())
-        val r = m.onControlOp(13_000)
-        assertEquals("complete", r.event())
-        assertTrue(m.onTick(23_000).applied())
+        assertFalse(m.blacked())
+        m.onControlOp(3_000)
+        assertEquals(2, m.fireCount())
+    }
+
+    @Test
+    fun sessionLostDuringPendingCancelsCountdown() {
+        val m = PaymentBlackoutStateMachine(TestConfig(delay = 10))
+        m.onControlledLocked(0)
+        m.onControlOp(1_000)
+        m.onSessionLost()
+        assertEquals(PaymentBlackoutStateMachine.State.IDLE, m.state())
+        assertFalse(m.onTick(11_000).applied())
+        assertEquals(0, m.fireCount())
     }
 
     @Test

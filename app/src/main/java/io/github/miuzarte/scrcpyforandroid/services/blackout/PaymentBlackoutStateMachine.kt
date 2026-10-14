@@ -15,8 +15,12 @@ package io.github.miuzarte.scrcpyforandroid.services.blackout
  *    logic triggering a blackout -> fallback blackout once (T_f >= 30 s, default 30).
  *
  * Boundaries: control ops before the lock are no-ops; a controlled re-wake returns to
- * ARMED (cancels a pending blackout); one blackout per round (blacked gate); config is
- * re-read on every decision; clock is injected via nowMs (pure logic, JVM-testable).
+ * ARMED (cancels a not-yet-committed blackout) — but once an op has committed a delayed
+ * blackout (PENDING), a re-wake observation does NOT cancel the countdown (v8: only
+ * session loss cancels; lock observations in the window are routinely stale or caused by
+ * the user's own remote usage — see flow/踩坑记录.md 2026-10-14); one blackout per round
+ * (blacked gate); config is re-read on every decision; clock is injected via nowMs (pure
+ * logic, JVM-testable).
  */
 class PaymentBlackoutStateMachine(config: ConfigSource?) {
 
@@ -92,11 +96,21 @@ class PaymentBlackoutStateMachine(config: ConfigSource?) {
         return result(EMPTY, "arm", tf)
     }
 
-    /** CONTROLLED_REWAKE: the controlled device woke again (user went back). IDLE -> no-op; else ARMED, pending cancelled, fallback restart. */
+    /**
+     * CONTROLLED_REWAKE: the controlled device woke again (user went back). 
+     * IDLE -> no-op; PENDING -> no-op (v8: a scheduled blackout is a commitment — lock-state
+     * observations during the countdown must not cancel it; they are routinely stale (5 s poll)
+     * or caused by the user's own remote usage, which silently voided every delay > 0);
+     * else -> ARMED, blacked reset, fallback restart.
+     */
     @Synchronized fun onControlledRewake(nowMs: Long): Result {
         val tf = fallbackThresholdSec()
         if (state == State.IDLE) {
             return noop("rewake_idle_noop", tf)
+        }
+        if (state == State.PENDING) {
+            // v8 commit semantics: keep the countdown (fires on tick). Only session_lost cancels.
+            return noop("rewake_pending_keep", tf)
         }
         state = State.ARMED
         blacked = false

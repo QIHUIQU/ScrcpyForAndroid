@@ -65,7 +65,10 @@ object PaymentBlackoutCoordinator {
             pollJob = scope.launch { pollLoop() }
             Log.i(
                 TAG,
-                PaymentBlackoutConfig.LOG_PREFIX + "session started: " + PaymentBlackoutConfig.describe(),
+                PaymentBlackoutConfig.LOG_PREFIX + "session started: " + PaymentBlackoutConfig.describe() +
+                    " | effective: delaySec=${PaymentBlackoutConfig.normalizeDelaySec(configSource.delaySecRaw())}" +
+                    " fallback=${PaymentBlackoutConfig.normalizeFallbackEnabled(configSource.fallbackEnabledRaw())}" +
+                    " thresholdSec=${PaymentBlackoutConfig.normalizeFallbackSec(configSource.fallbackThresholdSecRaw())}",
             )
         }
     }
