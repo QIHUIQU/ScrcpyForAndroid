@@ -209,6 +209,9 @@
     <string name="fullscreen_transfer_to_mirror_reconnecting">正在切回屏幕镜像（重连中，画面将短暂中断）</string>
     <string name="fullscreen_transfer_to_vd_reconnecting">正在切换到应用流转（重连中，画面将短暂中断）</string>
     <string name="fullscreen_transfer_failed">切换应用流转失败</string>
+    <string name="fullscreen_transfer_fetching_app">正在获取最近使用的应用…</string>
+    <string name="fullscreen_transfer_no_recent_app">未找到可流转的应用：请先在被控端打开要流转的应用</string>
+    <string name="vm_session_restart_failed">会话重连失败</string>
     <string name="pref_title_auto_jump">解锁后自动跳回远控界面</string>
     <string name="pref_summary_auto_jump">本机解锁且有活跃会话时自动回到远控画面（后台启动被系统限制时，打开 App 会直达串流界面）</string>
     <string name="pref_title_pay_blackout_delay">用完黑屏延迟</string>

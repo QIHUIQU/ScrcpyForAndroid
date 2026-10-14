@@ -17,6 +17,7 @@ import io.github.miuzarte.scrcpyforandroid.password.BiometricGate
 import io.github.miuzarte.scrcpyforandroid.password.PasswordRepository
 import io.github.miuzarte.scrcpyforandroid.password.hasAuthenticatedOrigin
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
+import io.github.miuzarte.scrcpyforandroid.services.AppVisibility
 import io.github.miuzarte.scrcpyforandroid.services.AppScreenOn
 import io.github.miuzarte.scrcpyforandroid.services.UnlockJumpController
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveScheduler
@@ -33,7 +34,6 @@ class MainActivity: LocalizedActivity() {
         // no logEvent before context init
         AppRuntime.init(applicationContext)
         AppScreenOn.register(window)
-        UnlockJumpController.register(applicationContext)
         if (Storage.appSettings.bundleState.value.processKeepAliveEnabled) {
             ProcessKeepAliveScheduler.ensureScheduled(applicationContext)
         }
@@ -64,16 +64,24 @@ class MainActivity: LocalizedActivity() {
         applyMainOrientationPolicy()
         StreamActivity.dismissActivePictureInPicture()
 
-        // BAL 降级: 解锁时被拦截的后台拉起, 改为"打开 App 直达串流"
-        if (UnlockJumpController.consumePendingJump()) {
-            if (AppRuntime.scrcpy?.isStarted() == true) {
-                startActivity(StreamActivity.createIntent(this))
-            }
+        // 回到前台(解锁/从后台打开)且会话活跃: 直达串流界面.
+        // 会话不活跃或串流已在前台时不做任何事, 绝不把用户弹到别处.
+        val reentry = AppVisibility.consumeReentry()
+        val sessionActive = AppRuntime.scrcpy?.isStarted() == true
+        val streamForeground = StreamActivity.isActive()
+        val jump = reentry && sessionActive && !streamForeground &&
+            Storage.appSettings.bundleState.value.autoJumpOnUnlock
+        Log.i(
+            UnlockJumpController.TAG,
+            "main_resume: reentry=$reentry sessionActive=$sessionActive " +
+                "streamForeground=$streamForeground -> ${if (jump) "jump" else "noop"}",
+        )
+        if (jump) {
+            startActivity(StreamActivity.createIntent(this))
         }
     }
 
     override fun onDestroy() {
-        UnlockJumpController.unregister(applicationContext)
         AppScreenOn.unregister(window)
         // Activity 重建 (配置变更) 不能收尾会话, 只有真正退出才释放
         if (isFinishing) AppRuntime.releaseSession()

@@ -7,6 +7,7 @@ import io.github.miuzarte.scrcpyforandroid.nativecore.PersistentVideoRenderer
 import io.github.miuzarte.scrcpyforandroid.nativecore.VideoDecoderController
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
+import io.github.miuzarte.scrcpyforandroid.services.UnlockJumpController
 import io.github.miuzarte.scrcpyforandroid.services.blackout.PaymentBlackoutCoordinator
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveService
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
@@ -15,6 +16,9 @@ import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -59,9 +63,12 @@ object NativeCoreFacade {
     @Volatile
     private var cachedClientOptions: ClientOptions? = null
 
-    // Guards against recursive restarts (restart triggers onScrcpySessionStopped/Started)
-    @Volatile
-    private var isRestarting = false
+    // Guards against recursive restarts (restart triggers onScrcpySessionStopped/Started).
+    // Exposed as a StateFlow so the stream UI can keep the screen alive during the
+    // reconnect gap (currentSessionState goes null mid-restart).
+    private val _restartInProgress = MutableStateFlow(false)
+    val restartInProgress: StateFlow<Boolean> = _restartInProgress.asStateFlow()
+    private val isRestarting: Boolean get() = _restartInProgress.value
 
     suspend fun close() {
         sessionLifecycleMutex.withLock {
@@ -184,7 +191,7 @@ object NativeCoreFacade {
     ) = sessionLifecycleMutex.withLock {
         scrcpyRef = scrcpy
         cachedClientOptions = options
-        isRestarting = false
+        _restartInProgress.value = false
         controller.releaseAll()
         controller.resetBootstrap()
         if (activeSurfaceId != null || recordingSurfaceAttached) {
@@ -203,6 +210,9 @@ object NativeCoreFacade {
             runCatching { ProcessKeepAliveService.start(AppRuntime.context) }
                 .onFailure { Log.w(TAG, "keep-alive FGS start failed", it) }
         }
+        // 解锁跳回接收器随会话生命周期注册 (MainActivity 可能已不在栈上)
+        runCatching { UnlockJumpController.register(AppRuntime.context) }
+            .onFailure { Log.w(TAG, "unlock-jump receiver register failed", it) }
         sessionMgr.attachVideoConsumer { packet ->
             cacheAndFeed(packet)
         }
@@ -264,6 +274,7 @@ object NativeCoreFacade {
     suspend fun onScrcpySessionStopped() = sessionLifecycleMutex.withLock {
         PaymentBlackoutCoordinator.onSessionStopped()
         runCatching { ProcessKeepAliveService.stop(AppRuntime.context) }
+        runCatching { UnlockJumpController.unregister() }
         controller.releaseAll()
         scrcpyRef = null
         recordingSurfaceAttached = false
@@ -310,13 +321,14 @@ object NativeCoreFacade {
      */
     private fun handleDecoderError() {
         if (isRestarting) return
-        isRestarting = true
+        val options = cachedClientOptions ?: return
+        _restartInProgress.value = true
         Log.i(TAG, "handleDecoderError(): restarting session due to decoder error")
         AppRuntime.snackbar(R.string.vm_decoder_error_restarting)
+        // 不持有 sessionLifecycleMutex: stop()/start() 会回调 onScrcpySessionStopped/Started,
+        // 那两个回调要拿同一把锁, 持锁重启会永久死锁
         lifecycleScope.launch {
-            sessionLifecycleMutex.withLock {
-                restartSessionWith(cachedClientOptions)
-            }
+            restartSessionWith(options)
         }
     }
 
@@ -333,42 +345,34 @@ object NativeCoreFacade {
      */
     fun requestAppTransferReconnect(transferStartApp: String?) {
         if (isRestarting) return
+        val base = cachedClientOptions ?: return
+        _restartInProgress.value = true
+        val newOptions = runCatching {
+            if (transferStartApp != null) {
+                base.copy(
+                    newDisplay = base.newDisplay.ifBlank { APP_TRANSFER_DEFAULT_VD_SIZE },
+                    startApp = transferStartApp,
+                ).fix().validate()
+            } else {
+                base.copy(newDisplay = "", startApp = "").fix().validate()
+            }
+        }.getOrElse { error ->
+            _restartInProgress.value = false
+            Log.w(TAG, "requestAppTransferReconnect(): invalid options", error)
+            AppRuntime.snackbar(R.string.fullscreen_transfer_failed)
+            return
+        }
+        Log.i(
+            TAG,
+            "requestAppTransferReconnect(): transfer=${transferStartApp != null} " +
+                "newDisplay=${newOptions.newDisplay} startApp=${newOptions.startApp}",
+        )
+        // 不持有 sessionLifecycleMutex (见 restartSessionWith 注释)
         lifecycleScope.launch {
-            sessionLifecycleMutex.withLock {
-                val base = cachedClientOptions ?: return@withLock
-                if (isRestarting) return@withLock
-                isRestarting = true
-                val newOptions = runCatching {
-                    if (transferStartApp != null) {
-                        val info = scrcpyRef?.currentSessionState?.value
-                        val size = if (info != null && info.width > 0 && info.height > 0) {
-                            "${info.width}x${info.height}"
-                        } else {
-                            APP_TRANSFER_FALLBACK_VD_SIZE
-                        }
-                        base.copy(
-                            newDisplay = base.newDisplay.ifBlank { size },
-                            startApp = transferStartApp,
-                        ).fix().validate()
-                    } else {
-                        base.copy(newDisplay = "", startApp = "").fix().validate()
-                    }
-                }.getOrElse { error ->
-                    isRestarting = false
-                    Log.w(TAG, "requestAppTransferReconnect(): invalid options", error)
-                    AppRuntime.snackbar(R.string.fullscreen_transfer_failed)
-                    return@withLock
-                }
-                Log.i(
-                    TAG,
-                    "requestAppTransferReconnect(): transfer=${transferStartApp != null} " +
-                        "newDisplay=${newOptions.newDisplay} startApp=${newOptions.startApp}",
-                )
-                restartSessionWith(newOptions)
-                if (newOptions.startApp.isNotBlank() && newOptions.control) {
-                    runCatching { scrcpyRef?.startApp(newOptions.startApp) }
-                        .onFailure { Log.w(TAG, "app transfer: startApp after reconnect failed", it) }
-                }
+            restartSessionWith(newOptions)
+            if (newOptions.startApp.isNotBlank() && newOptions.control) {
+                runCatching { scrcpyRef?.startApp(newOptions.startApp) }
+                    .onFailure { Log.w(TAG, "app transfer: startApp after reconnect failed", it) }
             }
         }
     }
@@ -379,38 +383,57 @@ object NativeCoreFacade {
      * Persists the new max_size to [Storage.scrcpyOptions] so the user sees the change
      * in the UI, then stops and restarts the session.
      */
-    private suspend fun downgradeAndRestart(maxSize: Int) {
+    private fun downgradeAndRestart(maxSize: Int) {
         if (isRestarting) return
-        isRestarting = true
         val options = cachedClientOptions ?: return
         val newOptions = options.copy(maxSize = maxSize.toUShort()).fix().validate()
+        _restartInProgress.value = true
 
-        // Persist the new max_size so the UI reflects the downgrade.
-        runCatching {
-            val soBundle = Storage.scrcpyOptions.bundleState.value
-            Storage.scrcpyOptions.saveBundle(soBundle.copy(maxSize = maxSize))
+        // 不持有 sessionLifecycleMutex (见 restartSessionWith 注释);
+        // 本函数在 onVideoSizeChanged 的持锁块内被调用, 用 launch 让重启在块释放后再跑
+        lifecycleScope.launch {
+            // Persist the new max_size so the UI reflects the downgrade.
+            runCatching {
+                val soBundle = Storage.scrcpyOptions.bundleState.value
+                Storage.scrcpyOptions.saveBundle(soBundle.copy(maxSize = maxSize))
+            }
+            restartSessionWith(newOptions)
         }
-
-        restartSessionWith(newOptions)
     }
 
     /**
      * Stop the current session and start a new one with [options].
      *
-     * Must be called while holding [sessionLifecycleMutex]. The [isRestarting] flag
-     * prevents recursive restarts — it is cleared in [onScrcpySessionStarted] when the
-     * new session comes up.
+     * MUST NOT be called while holding [sessionLifecycleMutex]: scrcpy.stop()/start()
+     * call back into [onScrcpySessionStopped]/[onScrcpySessionStarted], which acquire
+     * that same mutex — holding it here deadlocks the reconnect permanently (frozen
+     * video + isRestarting stuck true). The [isRestarting] flag prevents concurrent
+     * restarts; it is cleared in [onScrcpySessionStarted] when the new session is up,
+     * and on start failure here.
      */
     private suspend fun restartSessionWith(options: ClientOptions?) {
         val scrcpy = scrcpyRef ?: return
         if (options == null) return
         Log.i(TAG, "restartSessionWith(): stopping current session")
         runCatching { scrcpy.stop(Scrcpy.StopReason.USER) }
-        Log.i(TAG, "restartSessionWith(): starting new session with max_size=${options.maxSize}")
-        runCatching { scrcpy.start(options) }
+        Log.i(
+            TAG,
+            "restartSessionWith(): starting new session " +
+                "(max_size=${options.maxSize}, newDisplay=${options.newDisplay})",
+        )
+        val started = runCatching { scrcpy.start(options) }
+        if (started.isFailure) {
+            // 新会话没起来: 清标志, 否则后续所有重连/切换被永久锁死
+            _restartInProgress.value = false
+            Log.e(TAG, "restartSessionWith(): start failed", started.exceptionOrNull())
+            AppRuntime.snackbar(R.string.vm_session_restart_failed)
+        } else if (!options.video) {
+            _restartInProgress.value = false
+        }
     }
 
     private const val TAG = "NativeCoreFacade"
     private const val RESET_VIDEO_MIN_INTERVAL_MS = 500L
-    private const val APP_TRANSFER_FALLBACK_VD_SIZE = "1080x1920"
+    /** 应用流转虚拟显示默认尺寸 (未在 All Options 指定 new_display 时使用) */
+    private const val APP_TRANSFER_DEFAULT_VD_SIZE = "768x1024"
 }

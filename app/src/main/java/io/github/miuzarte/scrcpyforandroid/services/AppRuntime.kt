@@ -21,6 +21,7 @@ object AppRuntime {
 
     fun init(context: Context) {
         appContext = context.applicationContext
+        (appContext as? android.app.Application)?.let { AppVisibility.install(it) }
         AdbMdnsDiscoverer.init(appContext)
     }
 

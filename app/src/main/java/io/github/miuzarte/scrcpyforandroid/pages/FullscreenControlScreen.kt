@@ -74,8 +74,25 @@ fun FullscreenControlScreen(
     val listingsRefreshBusy by scrcpy.listings.refreshBusyState.collectAsState()
     val listingsRefreshVersion by scrcpy.listings.refreshVersionState.collectAsState()
 
-    LaunchedEffect(currentSession) {
-        if (currentSession == null) onBack()
+    val restartInProgress by NativeCoreFacade.restartInProgress.collectAsState()
+
+    LaunchedEffect(currentSession, restartInProgress) {
+        // 重连切换期间 currentSession 会短暂为 null, 此时不能退出串流界面
+        if (currentSession == null && !restartInProgress) onBack()
+    }
+
+    // 预取应用/最近任务列表 (非阻塞): 打开串流界面即后台拉取, 供"全部应用"/一键流转即时使用
+    LaunchedEffect(scrcpy) {
+        withContext(Dispatchers.IO) {
+            if (scrcpy.listings.recentTasks.isEmpty()) {
+                runCatching { scrcpy.listings.getRecentTasks(forceRefresh = true) }
+                    .onFailure { Log.w("FullscreenControlPage", "prefetch recentTasks failed", it) }
+            }
+            if (scrcpy.listings.apps.isEmpty()) {
+                runCatching { scrcpy.listings.getApps(forceRefresh = true) }
+                    .onFailure { Log.w("FullscreenControlPage", "prefetch apps failed", it) }
+            }
+        }
     }
 
     val asBundleShared by appSettings.bundleState.collectAsState()
@@ -228,7 +245,6 @@ fun FullscreenControlScreen(
     var showAllAppsSheet by rememberSaveable { mutableStateOf(false) }
     var imeRequestToken by rememberSaveable { mutableIntStateOf(0) }
     var gammaPanelVisible by rememberSaveable { mutableStateOf(false) }
-    var transferPickerActive by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(activity) {
         val window = activity?.window
@@ -335,14 +351,24 @@ fun FullscreenControlScreen(
                     AppRuntime.snackbar(R.string.fullscreen_transfer_to_mirror_reconnecting)
                     NativeCoreFacade.requestAppTransferReconnect(transferStartApp = null)
                 } else {
-                    transferPickerActive = true
-                    showAllAppsSheet = true
-                    if (
-                        scrcpy.listings.apps.isEmpty() &&
-                        !scrcpy.listings.refreshBusyState.value
-                    ) {
-                        taskScope.launch {
-                            refreshApps()
+                    // 一键流转: 不弹选择列表, 流转"最近使用"的应用
+                    // (原项目=搬移当前任务; 官方 server 无任务栈能力, 降级为在虚拟显示中冷启动该应用)
+                    taskScope.launch {
+                        var packageName = scrcpy.listings.recentTasks.firstOrNull()?.packageName
+                        if (packageName == null) {
+                            AppRuntime.snackbar(R.string.fullscreen_transfer_fetching_app)
+                            runCatching {
+                                scrcpy.listings.getRecentTasks(forceRefresh = true)
+                            }.onFailure {
+                                Log.w("FullscreenControlPage", "transfer: getRecentTasks failed", it)
+                            }
+                            packageName = scrcpy.listings.recentTasks.firstOrNull()?.packageName
+                        }
+                        if (packageName == null) {
+                            AppRuntime.snackbar(R.string.fullscreen_transfer_no_recent_app)
+                        } else {
+                            AppRuntime.snackbar(R.string.fullscreen_transfer_to_vd_reconnecting)
+                            NativeCoreFacade.requestAppTransferReconnect(transferStartApp = packageName)
                         }
                     }
                 }
@@ -540,10 +566,7 @@ fun FullscreenControlScreen(
 
             AppListBottomSheet(
                 show = showAllAppsSheet,
-                title = stringResource(
-                    if (transferPickerActive) R.string.fullscreen_pick_app_for_transfer
-                    else R.string.bottomsheet_all_apps,
-                ),
+                title = stringResource(R.string.bottomsheet_all_apps),
                 loadingText = stringResource(R.string.bottomsheet_loading_apps),
                 emptyText = stringResource(R.string.bottomsheet_no_apps),
                 entries = apps.map { app ->
@@ -554,23 +577,12 @@ fun FullscreenControlScreen(
                         system = app.system,
                         onClick = {
                             showAllAppsSheet = false
-                            if (transferPickerActive) {
-                                transferPickerActive = false
-                                AppRuntime.snackbar(R.string.fullscreen_transfer_to_vd_reconnecting)
-                                NativeCoreFacade.requestAppTransferReconnect(
-                                    transferStartApp = app.packageName,
-                                )
-                            } else {
-                                taskScope.launch { startApp(app.packageName) }
-                            }
+                            taskScope.launch { startApp(app.packageName) }
                         },
                     )
                 },
                 refreshBusy = listingsRefreshBusy,
-                onDismissRequest = {
-                    showAllAppsSheet = false
-                    transferPickerActive = false
-                },
+                onDismissRequest = { showAllAppsSheet = false },
                 onRefresh = {
                     taskScope.launch(Dispatchers.Main) {
                         refreshApps()

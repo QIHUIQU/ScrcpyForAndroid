@@ -36,15 +36,4 @@ class UnlockJumpControllerTest {
             ),
         )
     }
-
-    @Test
-    fun pendingJumpIsConsumeOnce() {
-        UnlockJumpController.pendingJump = false
-        assertFalse(UnlockJumpController.consumePendingJump())
-        UnlockJumpController.pendingJump = true
-        assertTrue(UnlockJumpController.consumePendingJump())
-        assertFalse(UnlockJumpController.consumePendingJump())
-        UnlockJumpController.onStreamUiShown()
-        assertFalse(UnlockJumpController.pendingJump)
-    }
 }

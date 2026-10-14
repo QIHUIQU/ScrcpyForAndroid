@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.StreamActivity
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
@@ -22,7 +23,12 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun StreamScreen(activity: StreamActivity) {
-    val scrcpy = remember { AppRuntime.scrcpy!! }
+    val scrcpy = AppRuntime.scrcpy
+    if (scrcpy == null) {
+        // 会话已被释放: 直接收尾, 不要 NPE 崩溃
+        LaunchedEffect(Unit) { activity.finish() }
+        return
+    }
     val asBundle by Storage.appSettings.bundleState.collectAsState()
 
     val isInPip by activity.pipModeState.collectAsState()
@@ -121,9 +127,11 @@ fun FullscreenControlRoute(
     val lifecycleOwner = LocalLifecycleOwner.current
     val asBundle by Storage.appSettings.bundleState.collectAsState()
     val currentSession by scrcpy.currentSessionState.collectAsState()
+    val restartInProgress by NativeCoreFacade.restartInProgress.collectAsState()
 
-    LaunchedEffect(currentSession) {
-        if (currentSession == null) {
+    LaunchedEffect(currentSession, restartInProgress) {
+        // 重连切换期间 currentSession 会短暂为 null, 此时不能退出串流界面
+        if (currentSession == null && !restartInProgress) {
             onBack()
         }
     }

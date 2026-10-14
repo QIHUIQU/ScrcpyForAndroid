@@ -16,34 +16,25 @@ import io.github.miuzarte.scrcpyforandroid.storage.Storage
  * (autoJumpOnUnlock, default on): when this device is unlocked and a scrcpy
  * session is alive, bring the stream UI back to the front.
  *
- * BAL note (Android 10+): a background activity launch from a receiver may be
- * silently blocked. The fallback is a pending flag: MainActivity.onResume
- * consumes it, so "open the app" lands directly in the stream UI. The flag is
- * cleared whenever the stream UI is shown, so exiting the stream does not
- * bounce the user back in.
+ * Registration lifetime = session lifetime: registered from [io.github.miuzarte.scrcpyforandroid.NativeCoreFacade]
+ * when a session starts and unregistered when it stops. MainActivity may be
+ * gone (or the app fully backgrounded) while a session is alive, so its
+ * lifecycle must not own the receiver.
+ *
+ * BAL note (Android 10+): a background activity launch may be silently
+ * blocked. Fallback: when the user later opens the app while a session is
+ * alive, MainActivity routes straight into the stream UI (re-entry check in
+ * [AppVisibility]), so the jump is never a hard requirement.
+ *
+ * Logs (tag [TAG], greppable): every USER_PRESENT delivery is logged,
+ * including no-op reasons.
  */
 object UnlockJumpController {
-    private const val TAG = "UnlockJumpController"
-
-    /** Set when an unlock jump was attempted; consumed by MainActivity.onResume / cleared when the stream UI shows. */
-    @Volatile
-    var pendingJump: Boolean = false
+    const val TAG = "UnlockJump"
 
     /** Pure decision predicate (JVM-testable). */
     fun shouldJump(enabled: Boolean, sessionActive: Boolean, streamInForeground: Boolean): Boolean =
         enabled && sessionActive && !streamInForeground
-
-    /** Consume-once read for MainActivity.onResume. */
-    fun consumePendingJump(): Boolean {
-        val value = pendingJump
-        pendingJump = false
-        return value
-    }
-
-    /** Stream UI became visible: the jump (if any) has landed. */
-    fun onStreamUiShown() {
-        pendingJump = false
-    }
 
     private var registered = false
 
@@ -54,9 +45,13 @@ object UnlockJumpController {
                 val enabled = Storage.appSettings.bundleState.value.autoJumpOnUnlock
                 val sessionActive = AppRuntime.scrcpy?.isStarted() == true
                 val streamInForeground = StreamActivity.isActive()
-                if (!shouldJump(enabled, sessionActive, streamInForeground)) return
-                Log.i(TAG, "user present: jumping back to stream (session active)")
-                pendingJump = true
+                val jump = shouldJump(enabled, sessionActive, streamInForeground)
+                Log.i(
+                    TAG,
+                    "user_present: enabled=$enabled sessionActive=$sessionActive " +
+                        "streamForeground=$streamInForeground -> ${if (jump) "jump" else "noop"}",
+                )
+                if (!jump) return
                 runCatching {
                     context.applicationContext.startActivity(
                         StreamActivity.createIntent(context.applicationContext).apply {
@@ -67,13 +62,15 @@ object UnlockJumpController {
                         },
                     )
                 }.onFailure {
-                    // BAL may also block silently; pendingJump covers both cases.
-                    Log.w(TAG, "startActivity failed; fallback = open app lands in stream", it)
+                    // BAL may also block silently; opening the app later lands in the
+                    // stream via the MainActivity re-entry check.
+                    Log.w(TAG, "jump startActivity failed (BAL?)", it)
                 }
             }
         }
     }
 
+    /** Registered for the lifetime of a scrcpy session (see NativeCoreFacade). */
     fun register(context: Context) {
         if (registered) return
         ContextCompat.registerReceiver(
@@ -83,11 +80,13 @@ object UnlockJumpController {
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
         registered = true
+        Log.i(TAG, "receiver registered (session lifetime)")
     }
 
-    fun unregister(context: Context) {
+    fun unregister() {
         if (!registered) return
-        runCatching { context.unregisterReceiver(receiver) }
+        runCatching { AppRuntime.context.unregisterReceiver(receiver) }
         registered = false
+        Log.i(TAG, "receiver unregistered")
     }
 }
