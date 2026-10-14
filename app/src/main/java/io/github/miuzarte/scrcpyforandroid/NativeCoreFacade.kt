@@ -325,6 +325,10 @@ object NativeCoreFacade {
      * error snackbar.
      */
     fun onVideoSizeChanged(width: Int, height: Int) {
+        // Runs on the video reader thread, in stream order before any following packet
+        // is cached: until the new stream's config packet arrives, cached packets still
+        // belong to the old stream and must not be replayed into a new-size decoder.
+        controller.onVideoSizeAnnounced()
         lifecycleScope.launch {
             sessionLifecycleMutex.withLock {
                 if (isRestarting) return@withLock

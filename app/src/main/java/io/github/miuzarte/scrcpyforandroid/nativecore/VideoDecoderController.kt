@@ -8,7 +8,6 @@ import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.util.ArrayDeque
 import java.util.concurrent.CopyOnWriteArraySet
 
 /**
@@ -45,11 +44,7 @@ internal class VideoDecoderController(
     private val videoSizeListeners = CopyOnWriteArraySet<(Int, Int) -> Unit>()
     private val videoFpsListeners = CopyOnWriteArraySet<(Float) -> Unit>()
 
-    private val bootstrapLock = Any()
-    private val bootstrapPackets = ArrayDeque<CachedPacket>()
-
-    @Volatile
-    private var latestConfigPacket: CachedPacket? = null
+    private val bootstrapCache = BootstrapCache()
 
     /**
      * Forwarded from the active decoder: invoked when a packet had to be dropped due to
@@ -87,10 +82,7 @@ internal class VideoDecoderController(
             decoder = null
             currentSessionInfo = null
         }
-        synchronized(bootstrapLock) {
-            bootstrapPackets.clear()
-            latestConfigPacket = null
-        }
+        bootstrapCache.reset()
     }
 
     /**
@@ -98,11 +90,15 @@ internal class VideoDecoderController(
      * decoder is created).
      */
     fun resetBootstrap() {
-        synchronized(bootstrapLock) {
-            bootstrapPackets.clear()
-            latestConfigPacket = null
-        }
+        bootstrapCache.reset()
     }
+
+    /**
+     * Called (on the video reader thread) when a new video size is announced: until the
+     * new stream's config packet arrives, cached packets still belong to the old stream
+     * and must not be replayed into a decoder configured for the new size.
+     */
+    fun onVideoSizeAnnounced() = bootstrapCache.onSizeAnnounced()
 
     // ---------- Surface management ----------
 
@@ -342,83 +338,55 @@ internal class VideoDecoderController(
 
     // ---------- Bootstrap packet cache ----------
 
+    /**
+     * Feed the cached bootstrap run into a freshly created decoder, following the
+     * [BootstrapCache] replay policy: skip while a new stream after a size change is
+     * expected (stale data), skip when no key frame is cached (a key-frame-less run
+     * would poison the decoder until the next periodic IDR).
+     */
     private fun replayBootstrapPackets(decoder: MediaCodecVideoDecoder) {
-        val snapshot = synchronized(bootstrapLock) { bootstrapPackets.toList() }
-        if (snapshot.isEmpty()) {
-            return
-        }
-        Log.i(TAG, "replayBootstrapPackets(): count=${snapshot.size}")
-        snapshot.forEachIndexed { index, packet ->
-            if (!decoder.isUsable()) {
-                Log.w(TAG, "replayBootstrapPackets(): decoder unusable, aborting replay at $index")
+        when (val decision = bootstrapCache.decideReplay()) {
+            is ReplayDecision.Nothing -> return
+
+            is ReplayDecision.SkipAwaitingNewStream -> {
+                Log.i(
+                    TAG,
+                    "replayBootstrapPackets(): skip stale replay " +
+                            "(awaiting new stream after size change), count=${decision.count}",
+                )
                 return
             }
-            runCatching {
-                decoder.feedAnnexB(packet.data, packet.ptsUs, packet.isKeyFrame, packet.isConfig)
+
+            is ReplayDecision.SkipNoKeyFrame -> {
+                Log.w(
+                    TAG,
+                    "replayBootstrapPackets(): skip replay, no keyframe in cache yet, " +
+                            "count=${decision.count}",
+                )
+                return
+            }
+
+            is ReplayDecision.Replay -> {
+                val snapshot = decision.packets
+                Log.i(TAG, "replayBootstrapPackets(): count=${snapshot.size}")
+                snapshot.forEachIndexed { index, packet ->
+                    if (!decoder.isUsable()) {
+                        Log.w(TAG, "replayBootstrapPackets(): decoder unusable, aborting replay at $index")
+                        return
+                    }
+                    runCatching {
+                        decoder.feedAnnexB(packet.data, packet.ptsUs, packet.isKeyFrame, packet.isConfig)
+                    }
+                }
             }
         }
     }
 
     private fun cacheBootstrapPacket(packet: Scrcpy.Session.VideoPacket) {
-        val cached = CachedPacket(
-            data = packet.data.copyOf(),
-            ptsUs = packet.ptsUs,
-            isConfig = packet.isConfig,
-            isKeyFrame = packet.isKeyFrame,
-        )
-        synchronized(bootstrapLock) {
-            if (cached.isConfig) {
-                latestConfigPacket = cached
-                bootstrapPackets.clear()
-                bootstrapPackets.addLast(cached)
-                return
-            }
-
-            if (cached.isKeyFrame) {
-                bootstrapPackets.clear()
-                latestConfigPacket?.let { bootstrapPackets.addLast(it) }
-                bootstrapPackets.addLast(cached)
-                return
-            }
-
-            while (bootstrapPackets.size >= MAX_BOOTSTRAP_PACKETS) {
-                bootstrapPackets.removeFirst()
-            }
-            bootstrapPackets.addLast(cached)
-        }
-    }
-
-    private data class CachedPacket(
-        val data: ByteArray,
-        val ptsUs: Long,
-        val isConfig: Boolean,
-        val isKeyFrame: Boolean,
-    ) {
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-
-            other as CachedPacket
-
-            if (ptsUs != other.ptsUs) return false
-            if (isConfig != other.isConfig) return false
-            if (isKeyFrame != other.isKeyFrame) return false
-            if (!data.contentEquals(other.data)) return false
-
-            return true
-        }
-
-        override fun hashCode(): Int {
-            var result = ptsUs.hashCode()
-            result = 31 * result + isConfig.hashCode()
-            result = 31 * result + isKeyFrame.hashCode()
-            result = 31 * result + data.contentHashCode()
-            return result
-        }
+        bootstrapCache.add(packet.data, packet.ptsUs, packet.isConfig, packet.isKeyFrame)
     }
 
     companion object {
         private const val TAG = "VideoDecoderController"
-        private const val MAX_BOOTSTRAP_PACKETS = 90
     }
 }
