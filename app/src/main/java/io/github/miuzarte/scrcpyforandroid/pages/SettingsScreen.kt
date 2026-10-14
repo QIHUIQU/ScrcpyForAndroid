@@ -1031,6 +1031,12 @@ fun SettingsPage(
                         }
                     },
                 )
+                SwitchPreference(
+                    title = stringResource(R.string.pref_title_crash_recovery),
+                    summary = stringResource(R.string.pref_summary_crash_recovery),
+                    checked = asBundle.crashRecoveryEnabled,
+                    onCheckedChange = { asBundle = asBundle.copy(crashRecoveryEnabled = it) },
+                )
                 Column(
                     modifier = Modifier.padding(vertical = UiSpacing.Large),
                     verticalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical),

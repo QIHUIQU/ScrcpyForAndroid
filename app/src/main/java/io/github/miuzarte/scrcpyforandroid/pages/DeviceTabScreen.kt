@@ -930,7 +930,8 @@ internal fun DeviceTabPage(
             viewModel.updateAsBundle { it.copy(deviceTwoPaneConfigOnRight = !it.deviceTwoPaneConfigOnRight) }
         }
 
-        if (!useTwoPane || !canShowPreviewControls) {
+        val currentSession = sessionInfo
+        if (!useTwoPane || !canShowPreviewControls || currentSession == null) {
             DeviceListContent(state = listState, includeInlinePreviewControls = true)
         } else {
             Row(
@@ -943,7 +944,6 @@ internal fun DeviceTabPage(
                     ),
                 horizontalArrangement = Arrangement.spacedBy(UiSpacing.PageItem),
             ) {
-                val currentSession = sessionInfo!!
                 val twoPaneContentWidth =
                     (availableMaxWidth - UiSpacing.PageHorizontal * 2 - UiSpacing.PageItem)
                         .coerceAtLeast(0.dp)

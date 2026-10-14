@@ -20,6 +20,7 @@ import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.AppScreenOn
 import io.github.miuzarte.scrcpyforandroid.services.UnlockJumpController
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveScheduler
+import io.github.miuzarte.scrcpyforandroid.services.keepalive.RecoveryPrefs
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.runBlocking
 
@@ -32,6 +33,9 @@ class MainActivity: LocalizedActivity() {
 
         // no logEvent before context init
         AppRuntime.init(applicationContext)
+        // 用户手动打开 App / 点保活通知 = 重新允许崩溃恢复（主动划掉后不再自动拉起）
+        getSharedPreferences(RecoveryPrefs.FILE, MODE_PRIVATE).edit()
+            .putBoolean(RecoveryPrefs.TASK_REMOVED, false).apply()
         AppScreenOn.register(window)
         if (Storage.appSettings.bundleState.value.processKeepAliveEnabled) {
             ProcessKeepAliveScheduler.ensureScheduled(applicationContext)

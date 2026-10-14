@@ -224,6 +224,8 @@
     <string name="pref_summary_controlled_lock_wake">On controller unlock, wake the locked controlled device; secure locks use the saved device password when one matches</string>
     <string name="pref_title_video_scale_locked">Lock zoom factor</string>
     <string name="pref_summary_video_scale_locked">Keep the current zoom factor unchanged until unlocked; two-finger panning still works</string>
+    <string name="pref_title_crash_recovery">Recover after crash or ANR</string>
+    <string name="pref_summary_crash_recovery">While keep-alive runs, attempt to reopen after an abnormal exit (max 3 attempts per 10 minutes). Android may block background launches; tap the notification to resume. Swiping away stops recovery.</string>
     <string name="pref_title_controlled_lock_auto_password">Automatically submit saved device PIN</string>
     <string name="pref_summary_controlled_lock_auto_password">On by default; can be turned off. Only an unauthenticated password entry named exactly as the connected device serial is used; submission skips the interactive biometric prompt for that device. Never keep it on for a device that is not yours.</string>
     <string name="controlled_lock_manual_input_needed">Controlled device woken up — enter its password manually (auto-unlock: save an unauthenticated password entry named exactly as the device serial).</string>

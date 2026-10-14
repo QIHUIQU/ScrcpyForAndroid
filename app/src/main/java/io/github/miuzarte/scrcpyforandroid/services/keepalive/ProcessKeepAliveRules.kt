@@ -23,7 +23,13 @@ object ProcessKeepAliveRules {
     /** Schedule the periodic job when the feature is enabled. */
     fun shouldSchedule(enabled: Boolean): Boolean = enabled
 
-    /** Run the foreground service only while enabled and a session is started. */
-    fun shouldRunService(enabled: Boolean, sessionActive: Boolean): Boolean =
-        enabled && sessionActive
+    /**
+     * Run the foreground service while enabled and either a session is started or a crash
+     * recovery is pending (the service itself decides whether an actual recovery is due).
+     */
+    fun shouldRunService(
+        enabled: Boolean,
+        sessionActive: Boolean,
+        recoveryPending: Boolean = false,
+    ): Boolean = enabled && (sessionActive || recoveryPending)
 }

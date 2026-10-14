@@ -187,6 +187,10 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
             true,
         )
         val VIDEO_SCALE_LOCKED = Pair(booleanPreferencesKey("video_scale_locked"), false)
+        val CRASH_RECOVERY_ENABLED = Pair(
+            booleanPreferencesKey("crash_recovery_enabled"),
+            true,
+        )
         val FULLSCREEN_DEBUG_INFO = Pair(
             booleanPreferencesKey("fullscreen_debug_info"),
             false,
@@ -399,6 +403,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         val processKeepAliveEnabled: Boolean,
         val controlledLockWakeEnabled: Boolean,
         val controlledLockAutoPasswordEnabled: Boolean,
+        val crashRecoveryEnabled: Boolean,
         val fullscreenDebugInfo: Boolean,
         val hideSimpleConfigItems: Boolean,
         val previewCardOnTop: Boolean,
@@ -479,6 +484,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         bundleField(PROCESS_KEEP_ALIVE_ENABLED) { it.processKeepAliveEnabled },
         bundleField(CONTROLLED_LOCK_WAKE_ENABLED) { it.controlledLockWakeEnabled },
         bundleField(CONTROLLED_LOCK_AUTO_PASSWORD_ENABLED) { it.controlledLockAutoPasswordEnabled },
+        bundleField(CRASH_RECOVERY_ENABLED) { it.crashRecoveryEnabled },
         bundleField(FULLSCREEN_DEBUG_INFO) { it.fullscreenDebugInfo },
         bundleField(HIDE_SIMPLE_CONFIG_ITEMS) { it.hideSimpleConfigItems },
         bundleField(PREVIEW_CARD_ON_TOP) { it.previewCardOnTop },
@@ -560,6 +566,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         processKeepAliveEnabled = preferences.read(PROCESS_KEEP_ALIVE_ENABLED),
         controlledLockWakeEnabled = preferences.read(CONTROLLED_LOCK_WAKE_ENABLED),
         controlledLockAutoPasswordEnabled = preferences.read(CONTROLLED_LOCK_AUTO_PASSWORD_ENABLED),
+        crashRecoveryEnabled = preferences.read(CRASH_RECOVERY_ENABLED),
         fullscreenDebugInfo = preferences.read(FULLSCREEN_DEBUG_INFO),
         hideSimpleConfigItems = preferences.read(HIDE_SIMPLE_CONFIG_ITEMS),
         previewCardOnTop = preferences.read(PREVIEW_CARD_ON_TOP),
