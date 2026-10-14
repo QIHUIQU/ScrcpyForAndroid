@@ -38,6 +38,14 @@ private class RecordingHost: VirtualButtonHost {
         calls += "gamma"
     }
 
+    override fun handleRotateScreen() {
+        calls += "rotateScreen"
+    }
+
+    override fun handleScreenScale() {
+        calls += "screenScale"
+    }
+
     override fun handleAppTransfer() {
         calls += "appTransfer"
     }
@@ -198,6 +206,8 @@ class VirtualButtonActionsTest {
             VirtualButtonAction.TOGGLE_IME to "toggleIme",
             VirtualButtonAction.PASTE_LOCAL_CLIPBOARD to "pasteClipboard",
             VirtualButtonAction.GAMMA to "gamma",
+            VirtualButtonAction.ROTATE_SCREEN to "rotateScreen",
+            VirtualButtonAction.SCREEN_SCALE to "screenScale",
             VirtualButtonAction.APP_TRANSFER to "appTransfer",
         )
 

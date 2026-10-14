@@ -443,6 +443,11 @@ class Scrcpy(
         session.setDisplayPower(on)
     }
 
+    /** Rotate the controlled device's screen (official control message TYPE_ROTATE_DEVICE). */
+    suspend fun rotateDevice() = withContext(Dispatchers.IO) {
+        session.rotateDevice()
+    }
+
     suspend fun injectTouch(
         action: Int,
         pointerId: Long,
@@ -1487,6 +1492,10 @@ class Scrcpy(
             withControlWriter("setDisplayPower") { setDisplayPower(on) }
         }
 
+        suspend fun rotateDevice() = mutex.withLock {
+            withControlWriter("rotateDevice") { rotateDevice() }
+        }
+
         suspend fun stop() = mutex.withLock {
             stopInternal()
         }
@@ -1850,6 +1859,13 @@ class Scrcpy(
             fun setDisplayPower(on: Boolean) {
                 output.writeByte(TYPE_SET_DISPLAY_POWER)
                 output.writeBoolean(on)
+                output.flush()
+            }
+
+            /** 旋转被控端屏幕（官方控制消息 TYPE_ROTATE_DEVICE=11，无参数；server 侧执行）。 */
+            @Synchronized
+            fun rotateDevice() {
+                output.writeByte(TYPE_ROTATE_DEVICE)
                 output.flush()
             }
 

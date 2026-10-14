@@ -1,6 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.storage
 
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
+import io.github.miuzarte.scrcpyforandroid.scrcpy.VideoScaleSettings
 import io.github.miuzarte.scrcpyforandroid.services.blackout.PaymentBlackoutConfig
 import android.content.Context
 import android.os.Parcelable
@@ -150,6 +151,10 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         val GAMMA_VALUE = Pair(
             floatPreferencesKey("gamma_value"),
             GammaSettings.DEFAULT_GAMMA,
+        )
+        val VIDEO_SCALE = Pair(
+            floatPreferencesKey("video_scale"),
+            VideoScaleSettings.DEFAULT_SCALE,
         )
         val AUTO_JUMP_ON_UNLOCK = Pair(
             booleanPreferencesKey("auto_jump_on_unlock"),
@@ -378,6 +383,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         val lowLatency: Boolean,
         val downsizeOnDecodeError: Boolean,
         val gammaValue: Float,
+        val videoScale: Float,
         val autoJumpOnUnlock: Boolean,
         val payBlackoutDelaySec: Int,
         val payBlackoutFallbackEnabled: Boolean,
@@ -455,6 +461,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         bundleField(LOW_LATENCY) { it.lowLatency },
         bundleField(DOWNSIZE_ON_DECODE_ERROR) { it.downsizeOnDecodeError },
         bundleField(GAMMA_VALUE) { it.gammaValue },
+        bundleField(VIDEO_SCALE) { it.videoScale },
         bundleField(AUTO_JUMP_ON_UNLOCK) { it.autoJumpOnUnlock },
         bundleField(PAY_BLACKOUT_DELAY_SEC) { it.payBlackoutDelaySec },
         bundleField(PAY_BLACKOUT_FALLBACK_ENABLED) { it.payBlackoutFallbackEnabled },
@@ -533,6 +540,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         lowLatency = preferences.read(LOW_LATENCY),
         downsizeOnDecodeError = preferences.read(DOWNSIZE_ON_DECODE_ERROR),
         gammaValue = preferences.read(GAMMA_VALUE),
+        videoScale = preferences.read(VIDEO_SCALE),
         autoJumpOnUnlock = preferences.read(AUTO_JUMP_ON_UNLOCK),
         payBlackoutDelaySec = preferences.read(PAY_BLACKOUT_DELAY_SEC),
         payBlackoutFallbackEnabled = preferences.read(PAY_BLACKOUT_FALLBACK_ENABLED),

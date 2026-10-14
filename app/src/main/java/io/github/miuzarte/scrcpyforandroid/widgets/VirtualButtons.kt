@@ -199,6 +199,22 @@ enum class VirtualButtonAction(
         behavior = VirtualButtonBehavior.HOST_ACTION,
         fullscreenOnly = true,
     ),
+    ROTATE_SCREEN(
+        id = "rotate_screen",
+        titleResId = R.string.vb_rotate_screen,
+        icon = Icons.Rounded.ScreenRotation,
+        keycode = null,
+        behavior = VirtualButtonBehavior.HOST_ACTION,
+        fullscreenOnly = true,
+    ),
+    SCREEN_SCALE(
+        id = "screen_scale",
+        titleResId = R.string.vb_screen_scale,
+        icon = Icons.Rounded.ZoomIn,
+        keycode = null,
+        behavior = VirtualButtonBehavior.HOST_ACTION,
+        fullscreenOnly = true,
+    ),
     EXIT_FULLSCREEN(
         id = "exit_fullscreen",
         titleResId = R.string.vb_exit_fullscreen,
@@ -240,6 +256,12 @@ interface VirtualButtonHost {
 
     // 打开/关闭 gamma 快捷调节面板
     fun handleGamma() = Unit
+
+    // 旋转被控端屏幕（官方 rotate_device 控制消息）
+    fun handleRotateScreen() = Unit
+
+    // 打开/关闭画面缩放快捷调节面板
+    fun handleScreenScale() = Unit
 
     // 切换屏幕镜像 / 应用流转（重连式）
     fun handleAppTransfer() = Unit
@@ -357,6 +379,8 @@ object VirtualButtonActions {
                 VirtualButtonAction.TOGGLE_IME -> host.handleToggleIme()
                 VirtualButtonAction.PASTE_LOCAL_CLIPBOARD -> host.handlePasteLocalClipboard()
                 VirtualButtonAction.GAMMA -> host.handleGamma()
+                VirtualButtonAction.ROTATE_SCREEN -> host.handleRotateScreen()
+                VirtualButtonAction.SCREEN_SCALE -> host.handleScreenScale()
                 VirtualButtonAction.APP_TRANSFER -> host.handleAppTransfer()
                 // 该动作标了 HOST_ACTION 却没有分发目标: 属于接错线, 直接暴露而不是静默吞掉
                 else -> error("unhandled host action: ${action.id}")

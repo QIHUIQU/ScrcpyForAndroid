@@ -205,6 +205,11 @@
     <string name="pref_title_gamma">Gamma</string>
     <string name="pref_summary_gamma">Adjust the gamma gain of the mirrored screen (0.50-2.00, default 1.25; also available from the fullscreen More menu)</string>
     <string name="vb_gamma">Gamma</string>
+    <string name="vb_rotate_screen">Rotate screen</string>
+    <string name="vb_screen_scale">Screen scale</string>
+    <string name="fullscreen_rotate_sent">Rotate request sent to the controlled device</string>
+    <string name="fullscreen_rotate_failed">Failed to send rotate request (no active session)</string>
+    <string name="fullscreen_scale_reset">Reset</string>
     <string name="vb_app_transfer">App transfer</string>
     <string name="fullscreen_pick_app_for_transfer">Pick an app to start in app transfer (virtual display)</string>
     <string name="fullscreen_transfer_to_mirror_reconnecting">Switching back to mirror (reconnecting; the screen will blink)</string>

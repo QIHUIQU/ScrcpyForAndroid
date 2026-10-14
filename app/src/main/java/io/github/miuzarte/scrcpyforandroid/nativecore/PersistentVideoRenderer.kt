@@ -1,5 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.nativecore
 
+import kotlin.math.roundToInt
+
 import android.graphics.SurfaceTexture
 import android.opengl.*
 import android.os.Handler
@@ -57,6 +59,10 @@ class PersistentVideoRenderer {
     /** Per-channel gain applied in the fragment shader (see [setGamma]). */
     @Volatile
     private var gammaValue: Float = 1f
+
+    /** 手动画面缩放倍率（EGL 视口居中缩放；见 [setVideoScale]）。 */
+    @Volatile
+    private var videoScaleValue: Float = 1f
 
     private val initLock = Any()
 
@@ -235,6 +241,10 @@ class PersistentVideoRenderer {
      */
     fun setGamma(value: Float) {
         gammaValue = value
+    }
+
+    fun setVideoScale(value: Float) {
+        videoScaleValue = value
     }
 
     fun release() {
@@ -443,7 +453,16 @@ class PersistentVideoRenderer {
         presentationTimeNs: Long? = null,
     ) {
         EGL14.eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext)
-        GLES20.glViewport(0, 0, width.coerceAtLeast(1), height.coerceAtLeast(1))
+        // 手动画面缩放: 在 surface 内居中缩放视口 (scale<1 缩小留黑边, >1 放大裁剪; 1.0 与原行为一致)
+        val scale = videoScaleValue.coerceIn(0.5f, 2f)
+        val viewportWidth = (width * scale).roundToInt().coerceAtLeast(1)
+        val viewportHeight = (height * scale).roundToInt().coerceAtLeast(1)
+        GLES20.glViewport(
+            (width - viewportWidth) / 2,
+            (height - viewportHeight) / 2,
+            viewportWidth,
+            viewportHeight,
+        )
         GLES20.glClearColor(0f, 0f, 0f, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
         GLES20.glUseProgram(program)

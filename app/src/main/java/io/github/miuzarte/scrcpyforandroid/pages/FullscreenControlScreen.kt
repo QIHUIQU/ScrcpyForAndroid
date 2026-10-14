@@ -38,6 +38,7 @@ import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GamepadHid
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GamepadInputHandler
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
+import io.github.miuzarte.scrcpyforandroid.scrcpy.VideoScaleSettings
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.scrcpy.TouchEventHandler
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
@@ -51,6 +52,7 @@ import io.github.miuzarte.scrcpyforandroid.widgets.*
 import kotlinx.coroutines.*
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Slider
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.Text
 
@@ -242,6 +244,7 @@ fun FullscreenControlScreen(
     var showAllAppsSheet by rememberSaveable { mutableStateOf(false) }
     var imeRequestToken by rememberSaveable { mutableIntStateOf(0) }
     var gammaPanelVisible by rememberSaveable { mutableStateOf(false) }
+    var screenScalePanelVisible by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(activity) {
         val window = activity?.window
@@ -341,6 +344,23 @@ fun FullscreenControlScreen(
 
             override fun handleGamma() {
                 gammaPanelVisible = !gammaPanelVisible
+            }
+
+            override fun handleRotateScreen() {
+                taskScope.launch {
+                    runCatching {
+                        scrcpy.rotateDevice()
+                    }.onSuccess {
+                        AppRuntime.snackbar(R.string.fullscreen_rotate_sent)
+                    }.onFailure { error ->
+                        Log.w("FullscreenControlPage", "rotateDevice failed", error)
+                        AppRuntime.snackbar(R.string.fullscreen_rotate_failed)
+                    }
+                }
+            }
+
+            override fun handleScreenScale() {
+                screenScalePanelVisible = !screenScalePanelVisible
             }
 
             override fun handleAppTransfer() {
@@ -611,6 +631,40 @@ fun FullscreenControlScreen(
                         },
                         valueRange = GammaSettings.MIN_GAMMA..GammaSettings.MAX_GAMMA,
                         steps = GammaSettings.SEEK_MAX - 1,
+                    )
+                }
+            }
+
+            if (screenScalePanelVisible) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 120.dp)
+                        .width(320.dp)
+                        .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.vb_screen_scale) +
+                            " " + VideoScaleSettings.format(asBundle.videoScale),
+                        color = Color.White,
+                        fontSize = 14.sp,
+                    )
+                    Slider(
+                        value = asBundle.videoScale,
+                        onValueChange = { value ->
+                            asBundle = asBundle.copy(videoScale = value)
+                            NativeCoreFacade.setVideoScale(value)
+                        },
+                        valueRange = VideoScaleSettings.MIN_SCALE..VideoScaleSettings.MAX_SCALE,
+                        steps = VideoScaleSettings.SEEK_MAX - 1,
+                    )
+                    TextButton(
+                        text = stringResource(R.string.fullscreen_scale_reset),
+                        onClick = {
+                            asBundle = asBundle.copy(videoScale = VideoScaleSettings.DEFAULT_SCALE)
+                            NativeCoreFacade.setVideoScale(VideoScaleSettings.DEFAULT_SCALE)
+                        },
                     )
                 }
             }

@@ -204,6 +204,11 @@
     <string name="pref_title_gamma">伽马值调节</string>
     <string name="pref_summary_gamma">调节远控画面伽马增益（0.50-2.00，默认 1.25；全屏「更多」菜单里也有快捷调节）</string>
     <string name="vb_gamma">伽马值</string>
+    <string name="vb_rotate_screen">旋转屏幕</string>
+    <string name="vb_screen_scale">画面缩放</string>
+    <string name="fullscreen_rotate_sent">已向被控端发送旋转请求</string>
+    <string name="fullscreen_rotate_failed">旋转请求发送失败（无活跃会话）</string>
+    <string name="fullscreen_scale_reset">复位</string>
     <string name="vb_app_transfer">应用流转</string>
     <string name="fullscreen_pick_app_for_transfer">选择要在应用流转（虚拟显示）中启动的应用</string>
     <string name="fullscreen_transfer_to_mirror_reconnecting">正在切回屏幕镜像（重连中，画面将短暂中断）</string>

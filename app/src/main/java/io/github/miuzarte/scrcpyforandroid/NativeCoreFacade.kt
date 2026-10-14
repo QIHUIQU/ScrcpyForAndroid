@@ -8,6 +8,7 @@ import io.github.miuzarte.scrcpyforandroid.nativecore.VideoSurfacePolicy
 import io.github.miuzarte.scrcpyforandroid.nativecore.VideoDecoderController
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
+import io.github.miuzarte.scrcpyforandroid.scrcpy.VideoScaleSettings
 import io.github.miuzarte.scrcpyforandroid.services.blackout.PaymentBlackoutCoordinator
 import io.github.miuzarte.scrcpyforandroid.services.lockwake.ControlledLockWakeController
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveService
@@ -101,6 +102,11 @@ object NativeCoreFacade {
     /** Apply the gamma gain to the persistent renderer (volatile; used on the next frame). */
     fun setGamma(value: Float) {
         renderer.setGamma(GammaSettings.normalize(value))
+    }
+
+    /** Apply the manual video scale to the persistent renderer (volatile; used on the next frame). */
+    fun setVideoScale(value: Float) {
+        renderer.setVideoScale(VideoScaleSettings.normalize(value))
     }
 
     suspend fun attachVideoSurface(surface: Surface, primary: Boolean) {
@@ -263,6 +269,7 @@ object NativeCoreFacade {
         }
         packetCount = 0
         renderer.setGamma(Storage.appSettings.bundleState.value.gammaValue)
+        renderer.setVideoScale(Storage.appSettings.bundleState.value.videoScale)
         PaymentBlackoutCoordinator.onSessionStarted()
         if (Storage.appSettings.bundleState.value.processKeepAliveEnabled) {
             runCatching { ProcessKeepAliveService.start(AppRuntime.context) }
