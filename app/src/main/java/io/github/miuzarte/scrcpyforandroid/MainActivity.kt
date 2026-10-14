@@ -17,7 +17,6 @@ import io.github.miuzarte.scrcpyforandroid.password.BiometricGate
 import io.github.miuzarte.scrcpyforandroid.password.PasswordRepository
 import io.github.miuzarte.scrcpyforandroid.password.hasAuthenticatedOrigin
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
-import io.github.miuzarte.scrcpyforandroid.services.AppVisibility
 import io.github.miuzarte.scrcpyforandroid.services.AppScreenOn
 import io.github.miuzarte.scrcpyforandroid.services.UnlockJumpController
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveScheduler
@@ -63,21 +62,9 @@ class MainActivity: LocalizedActivity() {
         super.onResume()
         applyMainOrientationPolicy()
 
-        // 回到前台(解锁/从后台打开)且会话活跃: 直达串流界面.
-        // 会话不活跃或串流已在前台时不做任何事, 绝不把用户弹到别处.
-        val reentry = AppVisibility.consumeReentry()
-        val sessionActive = AppRuntime.scrcpy?.isStarted() == true
-        val streamForeground = StreamActivity.isActive()
-        val jump = reentry && sessionActive && !streamForeground &&
-            Storage.appSettings.bundleState.value.autoJumpOnUnlock
-        Log.i(
-            UnlockJumpController.TAG,
-            "main_resume: reentry=$reentry sessionActive=$sessionActive " +
-                "streamForeground=$streamForeground -> ${if (jump) "jump" else "noop"}",
-        )
-        if (jump) {
-            startActivity(StreamActivity.createIntent(this))
-        }
+        // 主界面自动跳回远控（原项目 MainAutoJumpPlan 等价口径）:
+        // 会话活跃 + 设置开启 + 远控不在前台 ⇒ 恰一次把串流界面拉回前台（复用既有实例 reorder）
+        UnlockJumpController.tryJump(source = "main_resume")
     }
 
     override fun onDestroy() {

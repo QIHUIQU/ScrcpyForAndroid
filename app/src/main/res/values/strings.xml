@@ -213,8 +213,8 @@
     <string name="fullscreen_transfer_fetching_app">Fetching the most recent app…</string>
     <string name="fullscreen_transfer_no_recent_app">No recent app to transfer — open an app on the controlled device first</string>
     <string name="vm_session_restart_failed">Session restart failed</string>
-    <string name="pref_title_auto_jump">Jump back to remote after unlock</string>
-    <string name="pref_summary_auto_jump">When this device is unlocked and a session is active, return to the remote-control screen (if the background launch is blocked, opening the app lands directly in the stream)</string>
+    <string name="pref_title_auto_jump">Auto jump back to remote control</string>
+    <string name="pref_summary_auto_jump">When a session is active, unlocking this device or returning to the app main screen jumps straight back to the remote-control view (turn off to stay on the main screen)</string>
     <string name="pref_title_pay_blackout_delay">Blackout delay after use</string>
     <string name="pref_summary_pay_blackout_delay">Delay before turning off the screen of the controlled device after you return and operate this device (0-30 s, default 0)</string>
     <string name="pref_title_pay_blackout_fallback">Blackout fallback countdown</string>

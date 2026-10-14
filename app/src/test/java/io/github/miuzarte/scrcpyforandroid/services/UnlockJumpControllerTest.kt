@@ -36,4 +36,13 @@ class UnlockJumpControllerTest {
             ),
         )
     }
+
+    @Test
+    fun wakeTransitionMatrix() {
+        // 屏幕从"不可用"变为"可用"才触发（轮询兜底）
+        assertTrue(UnlockJumpController.shouldTriggerOnWakeTransition(usable = true, lastUsable = false))
+        assertFalse(UnlockJumpController.shouldTriggerOnWakeTransition(usable = true, lastUsable = true))
+        assertFalse(UnlockJumpController.shouldTriggerOnWakeTransition(usable = false, lastUsable = true))
+        assertFalse(UnlockJumpController.shouldTriggerOnWakeTransition(usable = false, lastUsable = false))
+    }
 }

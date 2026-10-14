@@ -21,7 +21,7 @@ object AppRuntime {
 
     fun init(context: Context) {
         appContext = context.applicationContext
-        (appContext as? android.app.Application)?.let { AppVisibility.install(it) }
+        UnlockJumpController.install(appContext)
         AdbMdnsDiscoverer.init(appContext)
     }
 

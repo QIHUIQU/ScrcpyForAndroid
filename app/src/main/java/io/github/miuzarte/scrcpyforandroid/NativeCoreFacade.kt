@@ -7,7 +7,6 @@ import io.github.miuzarte.scrcpyforandroid.nativecore.PersistentVideoRenderer
 import io.github.miuzarte.scrcpyforandroid.nativecore.VideoDecoderController
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
-import io.github.miuzarte.scrcpyforandroid.services.UnlockJumpController
 import io.github.miuzarte.scrcpyforandroid.services.blackout.PaymentBlackoutCoordinator
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveService
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
@@ -210,9 +209,6 @@ object NativeCoreFacade {
             runCatching { ProcessKeepAliveService.start(AppRuntime.context) }
                 .onFailure { Log.w(TAG, "keep-alive FGS start failed", it) }
         }
-        // 解锁跳回接收器随会话生命周期注册 (MainActivity 可能已不在栈上)
-        runCatching { UnlockJumpController.register(AppRuntime.context) }
-            .onFailure { Log.w(TAG, "unlock-jump receiver register failed", it) }
         sessionMgr.attachVideoConsumer { packet ->
             cacheAndFeed(packet)
         }
@@ -274,7 +270,6 @@ object NativeCoreFacade {
     suspend fun onScrcpySessionStopped() = sessionLifecycleMutex.withLock {
         PaymentBlackoutCoordinator.onSessionStopped()
         runCatching { ProcessKeepAliveService.stop(AppRuntime.context) }
-        runCatching { UnlockJumpController.unregister() }
         controller.releaseAll()
         scrcpyRef = null
         recordingSurfaceAttached = false
