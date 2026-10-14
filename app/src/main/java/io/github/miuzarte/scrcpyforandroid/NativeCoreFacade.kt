@@ -149,11 +149,11 @@ object NativeCoreFacade {
     }
 
     /**
-     * Unregister the active rendering [surface].
+     * Unregister a rendering [surface] from the dual-slot output model (see [VideoSurfacePolicy]).
      *
-     * - If a stale surface reference is supplied (identity mismatch), the request is ignored.
-     * - When [releaseDecoder] is false, only the active display target is cleared so a future
-     *   surface can attempt to rebind via `setOutputSurface()`.
+     * - If the surface is in neither slot (stale identity), the request is ignored.
+     * - Detaching the primary (fullscreen) surface falls back to the registered preview surface
+     *   when one is still valid; otherwise the active display target is cleared.
      * - When [releaseDecoder] is true, the current decoder is also released because the backing
      *   surface is being destroyed for real.
      */
