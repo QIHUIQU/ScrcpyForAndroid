@@ -374,6 +374,8 @@ class Scrcpy(
                 flexDisplay = false
                 _currentSessionState.value = null
                 stopClipboardSync()
+                rotateFallbackEngaged = false
+                rotateFallbackFixedEnabled = false
                 if (reason == StopReason.REMOTE_DISCONNECTED) {
                     logEvent(R.string.vm_session_disconnected, level = Log.WARN)
                     val now = android.os.SystemClock.elapsedRealtime()
@@ -443,9 +445,70 @@ class Scrcpy(
         session.setDisplayPower(on)
     }
 
+    /** 旋转回退状态: 设备忽略用户旋转时(如 vivo 折叠屏内屏)首次核对后启用并重试; 会话结束复位。 */
+    @Volatile
+    private var rotateFallbackEngaged = false
+
+    @Volatile
+    private var rotateFallbackFixedEnabled = false
+
     /** Rotate the controlled device's screen (official control message TYPE_ROTATE_DEVICE). */
     suspend fun rotateDevice() = withContext(Dispatchers.IO) {
+        if (NativeCoreFacade.isAppTransferSession()) {
+            // 虚拟显示(应用流转)会话: 真机实测(vivo 折叠屏)被控端不对 VD 应用用户旋转, 保持原行为
+            session.rotateDevice()
+            return@withContext
+        }
+        if (rotateFallbackEngaged) {
+            ensureFixedToUserRotationEnabled()
+            session.rotateDevice()
+            return@withContext
+        }
+        val before = readDisplayRotation()
         session.rotateDevice()
+        if (before == null || pollRotationChanged(before)) return@withContext
+        // 请求已送达但显示未动 ⇒ 该设备忽略了用户旋转
+        // (典型: vivo 折叠屏内屏出厂 fixed-to-user-rotation=disabled, freezeDisplayRotation 无效果)。
+        // 打开该开关后重试一次; 开关保持开启 —— 关闭会把已生效的旋转弹回。
+        Log.w(TAG, "rotateDevice: no effect observed (rotation=$before); enabling fixed-to-user-rotation and retrying")
+        rotateFallbackEngaged = true
+        ensureFixedToUserRotationEnabled()
+        // 开关生效可能让第一条请求里 pending 的 freeze 立即兑现 —— 先核对, 否则再发一条会把旋转又翻回去
+        if (pollRotationChanged(before, attempts = 3, delayMs = 300)) {
+            Log.i(TAG, "rotateDevice: fallback applied, rotation=$before -> ${readDisplayRotation()} (pending freeze)")
+            return@withContext
+        }
+        session.rotateDevice()
+        Log.i(TAG, "rotateDevice: fallback retried, rotation=$before -> ${readDisplayRotation()}")
+    }
+
+    /** 被控端默认显示(display 0)当前旋转; 读不到时返回 null(调用方按原行为处理)。 */
+    private suspend fun readDisplayRotation(): Int? = runCatching {
+        DisplayRotationReader.parseRotation(NativeAdbService.shell(DisplayRotationReader.READ_CMD))
+    }.onFailure {
+        Log.w(TAG, "readDisplayRotation failed", it)
+    }.getOrNull()
+
+    /** 轮询等待旋转生效: 可用设备实测 ~0.3s 内生效, 默认给到 ~1.3s。 */
+    private suspend fun pollRotationChanged(before: Int, attempts: Int = 4, delayMs: Long = 320): Boolean {
+        repeat(attempts) {
+            delay(delayMs)
+            val now = readDisplayRotation()
+            if (now != null && now != before) return true
+        }
+        return false
+    }
+
+    private suspend fun ensureFixedToUserRotationEnabled() {
+        if (rotateFallbackFixedEnabled) return
+        runCatching {
+            NativeAdbService.shell("cmd window fixed-to-user-rotation enabled")
+        }.onSuccess { output ->
+            rotateFallbackFixedEnabled = true
+            Log.i(TAG, "fixed-to-user-rotation enabled: ${output.trim()}")
+        }.onFailure {
+            Log.w(TAG, "failed to enable fixed-to-user-rotation", it)
+        }
     }
 
     suspend fun injectTouch(
