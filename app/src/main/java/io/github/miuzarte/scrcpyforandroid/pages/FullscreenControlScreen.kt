@@ -371,16 +371,14 @@ fun FullscreenControlScreen(
                     // 一键流转: 不弹选择列表, 流转"最近使用"的应用
                     // (原项目=搬移当前任务; 官方 server 无任务栈能力, 降级为在虚拟显示中冷启动该应用)
                     taskScope.launch {
-                        var packageName = scrcpy.listings.recentTasks.firstOrNull()?.packageName
-                        if (packageName == null) {
-                            AppRuntime.snackbar(R.string.fullscreen_transfer_fetching_app)
-                            runCatching {
-                                scrcpy.listings.getRecentTasks(forceRefresh = true)
-                            }.onFailure {
-                                Log.w("FullscreenControlPage", "transfer: getRecentTasks failed", it)
-                            }
-                            packageName = scrcpy.listings.recentTasks.firstOrNull()?.packageName
-                        }
+                        // Always query the device: cachedRecentTasks survives reconnects and
+                        // otherwise pins every subsequent transfer to the first chosen app.
+                        val packageName = runCatching {
+                            scrcpy.listings.getRecentTasks(forceRefresh = true).firstOrNull()?.packageName
+                        }.onFailure {
+                            Log.w("FullscreenControlPage", "transfer: getRecentTasks failed", it)
+                        }.getOrNull()
+                        Log.i("FullscreenControlPage", "transfer: freshly selected app=$packageName")
                         if (packageName == null) {
                             AppRuntime.snackbar(R.string.fullscreen_transfer_no_recent_app)
                         } else {

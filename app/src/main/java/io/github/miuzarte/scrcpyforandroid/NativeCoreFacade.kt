@@ -433,7 +433,10 @@ object NativeCoreFacade {
         lifecycleScope.launch {
             restartSessionWith(newOptions)
             if (newOptions.startApp.isNotBlank() && newOptions.control) {
+                // 应用的启动只能靠这条控制消息 (server 端无 start_app 参数): 重连后必须补发,
+                // 否则虚拟显示停在空桌面 (v7 流转回归修复; 成功与否真机以画面为准)
                 runCatching { scrcpyRef?.startApp(newOptions.startApp) }
+                    .onSuccess { Log.i(TAG, "app transfer: startApp sent (${newOptions.startApp})") }
                     .onFailure { Log.w(TAG, "app transfer: startApp after reconnect failed", it) }
             }
         }
