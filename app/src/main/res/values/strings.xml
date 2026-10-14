@@ -202,6 +202,9 @@
     <string name="pref_summary_debug_info">Display resolution, frame rate, and touch info as overlay in fullscreen</string>
     <string name="pref_title_stretch_fill">Stretch fill in fullscreen</string>
     <string name="pref_summary_stretch_fill">Stretch the video to fill the whole screen; when off, keep the aspect ratio with letterbox</string>
+    <string name="pref_title_gamma">Gamma</string>
+    <string name="pref_summary_gamma">Adjust the gamma gain of the mirrored screen (0.50-2.00, default 1.25; also available from the fullscreen More menu)</string>
+    <string name="vb_gamma">Gamma</string>
     <string name="pref_title_hide_simple_settings">Hide simple settings on device page</string>
     <string name="pref_summary_hide_simple_settings">When enabled, the device page only keeps More parameters, All apps, Recent tasks, and Start/Stop buttons</string>
     <string name="pref_title_preview_card_on_top">Show preview card above config</string>

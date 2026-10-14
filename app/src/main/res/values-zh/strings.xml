@@ -201,6 +201,9 @@
     <string name="pref_summary_debug_info">在全屏界面悬浮显示分辨率、帧率和触点信息</string>
     <string name="pref_title_stretch_fill">全屏模式拉伸填充画面</string>
     <string name="pref_summary_stretch_fill">画面拉伸铺满全屏（关闭则保持比例显示，两侧留黑边）</string>
+    <string name="pref_title_gamma">伽马值调节</string>
+    <string name="pref_summary_gamma">调节远控画面伽马增益（0.50-2.00，默认 1.25；全屏「更多」菜单里也有快捷调节）</string>
+    <string name="vb_gamma">伽马值</string>
     <string name="pref_title_hide_simple_settings">设备页隐藏简单设置项</string>
     <string name="pref_summary_hide_simple_settings">启用后设备页仅保留更多参数、所有应用、最近任务和启动/停止按钮</string>
     <string name="pref_title_preview_card_on_top">使预览卡显示在配置卡上方</string>

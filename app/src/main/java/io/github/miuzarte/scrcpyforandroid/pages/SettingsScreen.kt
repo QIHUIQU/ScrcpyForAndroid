@@ -28,7 +28,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.core.net.toUri
 import io.github.miuzarte.scrcpyforandroid.BuildConfig
 import io.github.miuzarte.scrcpyforandroid.LockscreenPasswordActivity
+import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.R
+import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.i18n.AppLocale
 import io.github.miuzarte.scrcpyforandroid.nativecore.DirectAdbTransport
@@ -515,6 +517,40 @@ fun SettingsPage(
                         asBundle = asBundle.copy(
                             stretchFill = it,
                         )
+                    },
+                )
+                ArrowSlider(
+                    title = stringResource(R.string.pref_title_gamma),
+                    summary = stringResource(R.string.pref_summary_gamma),
+                    value = asBundle.gammaValue,
+                    onValueChange = {
+                        val value = GammaSettings.progressToGamma(
+                            GammaSettings.gammaToProgress(it),
+                        )
+                        asBundle = asBundle.copy(
+                            gammaValue = value,
+                        )
+                        NativeCoreFacade.setGamma(value)
+                    },
+                    valueRange = GammaSettings.MIN_GAMMA..GammaSettings.MAX_GAMMA,
+                    steps = GammaSettings.SEEK_MAX - 1,
+                    unit = "",
+                    displayFormatter = { GammaSettings.format(it) },
+                    inputInitialValue = GammaSettings.format(asBundle.gammaValue),
+                    inputFilter = { it.filter { c -> c.isDigit() || c == '.' } },
+                    inputValueRange = GammaSettings.MIN_GAMMA..GammaSettings.MAX_GAMMA,
+                    onInputConfirm = { input ->
+                        input.toFloatOrNull()?.let {
+                            if (GammaSettings.isLegal(it)) {
+                                val value = GammaSettings.progressToGamma(
+                                    GammaSettings.gammaToProgress(it),
+                                )
+                                asBundle = asBundle.copy(
+                                    gammaValue = value,
+                                )
+                                NativeCoreFacade.setGamma(value)
+                            }
+                        }
                     },
                 )
                 SwitchPreference(

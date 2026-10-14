@@ -6,6 +6,7 @@ import io.github.miuzarte.scrcpyforandroid.nativecore.DecoderCapabilities
 import io.github.miuzarte.scrcpyforandroid.nativecore.PersistentVideoRenderer
 import io.github.miuzarte.scrcpyforandroid.nativecore.VideoDecoderController
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
+import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
@@ -74,6 +75,11 @@ object NativeCoreFacade {
      * - If a decoder exists but cannot switch output surface, a new decoder is created
      *   and bound to the supplied surface.
      */
+    /** Apply the gamma gain to the persistent renderer (volatile; used on the next frame). */
+    fun setGamma(value: Float) {
+        renderer.setGamma(GammaSettings.normalize(value))
+    }
+
     suspend fun attachVideoSurface(surface: Surface) {
         sessionLifecycleMutex.withLock {
             if (!surface.isValid) {
@@ -189,6 +195,7 @@ object NativeCoreFacade {
             }
         }
         packetCount = 0
+        renderer.setGamma(Storage.appSettings.bundleState.value.gammaValue)
         sessionMgr.attachVideoConsumer { packet ->
             cacheAndFeed(packet)
         }

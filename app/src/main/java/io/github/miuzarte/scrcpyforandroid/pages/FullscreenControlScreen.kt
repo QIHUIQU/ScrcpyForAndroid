@@ -10,6 +10,7 @@ import android.view.Surface
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -37,6 +38,7 @@ import io.github.miuzarte.scrcpyforandroid.password.rememberPasswordPickerEntrie
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GamepadHid
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GamepadInputHandler
+import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.scrcpy.TouchEventHandler
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
@@ -49,6 +51,7 @@ import io.github.miuzarte.scrcpyforandroid.util.Debouncer
 import io.github.miuzarte.scrcpyforandroid.widgets.*
 import kotlinx.coroutines.*
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.Text
 
@@ -224,6 +227,7 @@ fun FullscreenControlScreen(
     var showRecentTasksSheet by rememberSaveable { mutableStateOf(false) }
     var showAllAppsSheet by rememberSaveable { mutableStateOf(false) }
     var imeRequestToken by rememberSaveable { mutableIntStateOf(0) }
+    var gammaPanelVisible by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(activity) {
         val window = activity?.window
@@ -320,6 +324,10 @@ fun FullscreenControlScreen(
     val virtualButtonHost = remember(onBack) {
         object: VirtualButtonHost {
             override fun handleExitFullscreen() = onBack()
+
+            override fun handleGamma() {
+                gammaPanelVisible = !gammaPanelVisible
+            }
 
             override fun handleShowRecentTasks() {
                 showRecentTasksSheet = true
@@ -536,6 +544,36 @@ fun FullscreenControlScreen(
                     }
                 },
             )
+
+            if (gammaPanelVisible) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 120.dp)
+                        .width(320.dp)
+                        .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.vb_gamma) +
+                            " " + GammaSettings.format(asBundle.gammaValue),
+                        color = Color.White,
+                        fontSize = 14.sp,
+                    )
+                    Slider(
+                        value = asBundle.gammaValue,
+                        onValueChange = { raw ->
+                            val value = GammaSettings.progressToGamma(
+                                GammaSettings.gammaToProgress(raw),
+                            )
+                            asBundle = asBundle.copy(gammaValue = value)
+                            NativeCoreFacade.setGamma(value)
+                        },
+                        valueRange = GammaSettings.MIN_GAMMA..GammaSettings.MAX_GAMMA,
+                        steps = GammaSettings.SEEK_MAX - 1,
+                    )
+                }
+            }
         }
     }
 }

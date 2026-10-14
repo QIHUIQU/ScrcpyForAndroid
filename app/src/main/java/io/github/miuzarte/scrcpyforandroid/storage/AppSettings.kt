@@ -1,5 +1,6 @@
 package io.github.miuzarte.scrcpyforandroid.storage
 
+import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
 import android.content.Context
 import android.os.Parcelable
 import androidx.annotation.StringRes
@@ -144,6 +145,10 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         val DOWNSIZE_ON_DECODE_ERROR = Pair(
             booleanPreferencesKey("downsize_on_decode_error"),
             true,
+        )
+        val GAMMA_VALUE = Pair(
+            floatPreferencesKey("gamma_value"),
+            GammaSettings.DEFAULT_GAMMA,
         )
         val FULLSCREEN_DEBUG_INFO = Pair(
             booleanPreferencesKey("fullscreen_debug_info"),
@@ -347,6 +352,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         // Scrcpy
         val lowLatency: Boolean,
         val downsizeOnDecodeError: Boolean,
+        val gammaValue: Float,
         val fullscreenDebugInfo: Boolean,
         val hideSimpleConfigItems: Boolean,
         val previewCardOnTop: Boolean,
@@ -417,6 +423,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         // Scrcpy
         bundleField(LOW_LATENCY) { it.lowLatency },
         bundleField(DOWNSIZE_ON_DECODE_ERROR) { it.downsizeOnDecodeError },
+        bundleField(GAMMA_VALUE) { it.gammaValue },
         bundleField(FULLSCREEN_DEBUG_INFO) { it.fullscreenDebugInfo },
         bundleField(HIDE_SIMPLE_CONFIG_ITEMS) { it.hideSimpleConfigItems },
         bundleField(PREVIEW_CARD_ON_TOP) { it.previewCardOnTop },
@@ -488,6 +495,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         // Scrcpy
         lowLatency = preferences.read(LOW_LATENCY),
         downsizeOnDecodeError = preferences.read(DOWNSIZE_ON_DECODE_ERROR),
+        gammaValue = preferences.read(GAMMA_VALUE),
         fullscreenDebugInfo = preferences.read(FULLSCREEN_DEBUG_INFO),
         hideSimpleConfigItems = preferences.read(HIDE_SIMPLE_CONFIG_ITEMS),
         previewCardOnTop = preferences.read(PREVIEW_CARD_ON_TOP),

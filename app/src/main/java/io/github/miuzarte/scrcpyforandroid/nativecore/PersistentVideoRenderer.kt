@@ -52,6 +52,11 @@ class PersistentVideoRenderer {
     private var mvpMatrixHandle = 0
     private var stMatrixHandle = 0
     private var samplerHandle = 0
+    private var gammaHandle = 0
+
+    /** Per-channel gain applied in the fragment shader (see [setGamma]). */
+    @Volatile
+    private var gammaValue: Float = 1f
 
     private val initLock = Any()
 
@@ -221,6 +226,17 @@ class PersistentVideoRenderer {
         }
     }
 
+    /**
+     * Set the gamma gain applied when rendering to the display surface.
+     *
+     * A per-channel gain (== gamma), matching EasyControl's approximation:
+     * > 1 brightens, < 1 darkens, 1.0 is identity. Recorded output shares this
+     * renderer and therefore shares the gain ("what you see is what you record").
+     */
+    fun setGamma(value: Float) {
+        gammaValue = value
+    }
+
     fun release() {
         handler.post {
             if (released) return@post
@@ -338,6 +354,7 @@ class PersistentVideoRenderer {
         mvpMatrixHandle = GLES20.glGetUniformLocation(program, "uMvpMatrix")
         stMatrixHandle = GLES20.glGetUniformLocation(program, "uStMatrix")
         samplerHandle = GLES20.glGetUniformLocation(program, "sTexture")
+        gammaHandle = GLES20.glGetUniformLocation(program, "uGamma")
     }
 
     private fun drawFrame() {
@@ -433,6 +450,7 @@ class PersistentVideoRenderer {
         GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, mvpMatrix, 0)
         GLES20.glUniformMatrix4fv(stMatrixHandle, 1, false, stMatrix, 0)
         GLES20.glUniform1i(samplerHandle, 0)
+        GLES20.glUniform1f(gammaHandle, gammaValue)
 
         VERTICES.position(0)
         GLES20.glVertexAttribPointer(positionHandle, 2, GLES20.GL_FLOAT, false, 16, VERTICES)
@@ -525,8 +543,10 @@ class PersistentVideoRenderer {
             precision mediump float;
             varying vec2 vTexCoord;
             uniform samplerExternalOES sTexture;
+            uniform float uGamma;
             void main() {
-                gl_FragColor = texture2D(sTexture, vTexCoord);
+                vec4 color = texture2D(sTexture, vTexCoord);
+                gl_FragColor = vec4(color.rgb * uGamma, color.a);
             }
         """
     }

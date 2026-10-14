@@ -183,6 +183,14 @@ enum class VirtualButtonAction(
         keycode = null,
         behavior = VirtualButtonBehavior.HOST_ACTION,
     ),
+    GAMMA(
+        id = "gamma",
+        titleResId = R.string.vb_gamma,
+        icon = Icons.Rounded.Brightness6,
+        keycode = null,
+        behavior = VirtualButtonBehavior.HOST_ACTION,
+        fullscreenOnly = true,
+    ),
     EXIT_FULLSCREEN(
         id = "exit_fullscreen",
         titleResId = R.string.vb_exit_fullscreen,
@@ -221,6 +229,9 @@ interface VirtualButtonHost {
 
     // 把本机剪贴板内容粘贴到设备
     fun handlePasteLocalClipboard() = Unit
+
+    // 打开/关闭 gamma 快捷调节面板
+    fun handleGamma() = Unit
 }
 
 object VirtualButtonActions {
@@ -334,6 +345,7 @@ object VirtualButtonActions {
                 VirtualButtonAction.ALL_APPS -> host.handleShowAllApps()
                 VirtualButtonAction.TOGGLE_IME -> host.handleToggleIme()
                 VirtualButtonAction.PASTE_LOCAL_CLIPBOARD -> host.handlePasteLocalClipboard()
+                VirtualButtonAction.GAMMA -> host.handleGamma()
                 // 该动作标了 HOST_ACTION 却没有分发目标: 属于接错线, 直接暴露而不是静默吞掉
                 else -> error("unhandled host action: ${action.id}")
             }
