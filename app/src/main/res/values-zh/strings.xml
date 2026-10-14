@@ -204,6 +204,11 @@
     <string name="pref_title_gamma">伽马值调节</string>
     <string name="pref_summary_gamma">调节远控画面伽马增益（0.50-2.00，默认 1.25；全屏「更多」菜单里也有快捷调节）</string>
     <string name="vb_gamma">伽马值</string>
+    <string name="vb_app_transfer">应用流转</string>
+    <string name="fullscreen_pick_app_for_transfer">选择要在应用流转（虚拟显示）中启动的应用</string>
+    <string name="fullscreen_transfer_to_mirror_reconnecting">正在切回屏幕镜像（重连中，画面将短暂中断）</string>
+    <string name="fullscreen_transfer_to_vd_reconnecting">正在切换到应用流转（重连中，画面将短暂中断）</string>
+    <string name="fullscreen_transfer_failed">切换应用流转失败</string>
     <string name="pref_title_auto_jump">解锁后自动跳回远控界面</string>
     <string name="pref_summary_auto_jump">本机解锁且有活跃会话时自动回到远控画面（后台启动被系统限制时，打开 App 会直达串流界面）</string>
     <string name="pref_title_pay_blackout_delay">用完黑屏延迟</string>

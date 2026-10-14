@@ -314,6 +314,59 @@ object NativeCoreFacade {
         }
     }
 
+    /** True when the current session was started in app-transfer (virtual display) mode. */
+    fun isAppTransferSession(): Boolean = cachedClientOptions?.newDisplay?.isNotBlank() == true
+
+    /**
+     * Switch the current session between mirror and app-transfer (virtual display) modes.
+     *
+     * The official scrcpy server cannot switch displays in-session, so this reconnects
+     * with adjusted options: [transferStartApp] != null -> virtual display (sized like the
+     * current stream) with that app started; null -> plain mirror. The screen blinks for
+     * the reconnect duration (a few seconds).
+     */
+    fun requestAppTransferReconnect(transferStartApp: String?) {
+        if (isRestarting) return
+        lifecycleScope.launch {
+            sessionLifecycleMutex.withLock {
+                val base = cachedClientOptions ?: return@withLock
+                if (isRestarting) return@withLock
+                isRestarting = true
+                val newOptions = runCatching {
+                    if (transferStartApp != null) {
+                        val info = scrcpyRef?.currentSessionState?.value
+                        val size = if (info != null && info.width > 0 && info.height > 0) {
+                            "${info.width}x${info.height}"
+                        } else {
+                            APP_TRANSFER_FALLBACK_VD_SIZE
+                        }
+                        base.copy(
+                            newDisplay = base.newDisplay.ifBlank { size },
+                            startApp = transferStartApp,
+                        ).fix().validate()
+                    } else {
+                        base.copy(newDisplay = "", startApp = "").fix().validate()
+                    }
+                }.getOrElse { error ->
+                    isRestarting = false
+                    Log.w(TAG, "requestAppTransferReconnect(): invalid options", error)
+                    AppRuntime.snackbar(R.string.fullscreen_transfer_failed)
+                    return@withLock
+                }
+                Log.i(
+                    TAG,
+                    "requestAppTransferReconnect(): transfer=${transferStartApp != null} " +
+                        "newDisplay=${newOptions.newDisplay} startApp=${newOptions.startApp}",
+                )
+                restartSessionWith(newOptions)
+                if (newOptions.startApp.isNotBlank() && newOptions.control) {
+                    runCatching { scrcpyRef?.startApp(newOptions.startApp) }
+                        .onFailure { Log.w(TAG, "app transfer: startApp after reconnect failed", it) }
+                }
+            }
+        }
+    }
+
     /**
      * Restart the scrcpy session with a modified `max_size`.
      *
@@ -353,4 +406,5 @@ object NativeCoreFacade {
 
     private const val TAG = "NativeCoreFacade"
     private const val RESET_VIDEO_MIN_INTERVAL_MS = 500L
+    private const val APP_TRANSFER_FALLBACK_VD_SIZE = "1080x1920"
 }

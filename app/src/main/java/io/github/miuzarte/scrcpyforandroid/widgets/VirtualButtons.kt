@@ -183,6 +183,14 @@ enum class VirtualButtonAction(
         keycode = null,
         behavior = VirtualButtonBehavior.HOST_ACTION,
     ),
+    APP_TRANSFER(
+        id = "app_transfer",
+        titleResId = R.string.vb_app_transfer,
+        icon = Icons.Rounded.SwapHoriz,
+        keycode = null,
+        behavior = VirtualButtonBehavior.HOST_ACTION,
+        fullscreenOnly = true,
+    ),
     GAMMA(
         id = "gamma",
         titleResId = R.string.vb_gamma,
@@ -232,6 +240,9 @@ interface VirtualButtonHost {
 
     // 打开/关闭 gamma 快捷调节面板
     fun handleGamma() = Unit
+
+    // 切换屏幕镜像 / 应用流转（重连式）
+    fun handleAppTransfer() = Unit
 }
 
 object VirtualButtonActions {
@@ -346,6 +357,7 @@ object VirtualButtonActions {
                 VirtualButtonAction.TOGGLE_IME -> host.handleToggleIme()
                 VirtualButtonAction.PASTE_LOCAL_CLIPBOARD -> host.handlePasteLocalClipboard()
                 VirtualButtonAction.GAMMA -> host.handleGamma()
+                VirtualButtonAction.APP_TRANSFER -> host.handleAppTransfer()
                 // 该动作标了 HOST_ACTION 却没有分发目标: 属于接错线, 直接暴露而不是静默吞掉
                 else -> error("unhandled host action: ${action.id}")
             }

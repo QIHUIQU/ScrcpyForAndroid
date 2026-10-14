@@ -228,6 +228,7 @@ fun FullscreenControlScreen(
     var showAllAppsSheet by rememberSaveable { mutableStateOf(false) }
     var imeRequestToken by rememberSaveable { mutableIntStateOf(0) }
     var gammaPanelVisible by rememberSaveable { mutableStateOf(false) }
+    var transferPickerActive by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(activity) {
         val window = activity?.window
@@ -327,6 +328,24 @@ fun FullscreenControlScreen(
 
             override fun handleGamma() {
                 gammaPanelVisible = !gammaPanelVisible
+            }
+
+            override fun handleAppTransfer() {
+                if (NativeCoreFacade.isAppTransferSession()) {
+                    AppRuntime.snackbar(R.string.fullscreen_transfer_to_mirror_reconnecting)
+                    NativeCoreFacade.requestAppTransferReconnect(transferStartApp = null)
+                } else {
+                    transferPickerActive = true
+                    showAllAppsSheet = true
+                    if (
+                        scrcpy.listings.apps.isEmpty() &&
+                        !scrcpy.listings.refreshBusyState.value
+                    ) {
+                        taskScope.launch {
+                            refreshApps()
+                        }
+                    }
+                }
             }
 
             override fun handleShowRecentTasks() {
@@ -521,7 +540,10 @@ fun FullscreenControlScreen(
 
             AppListBottomSheet(
                 show = showAllAppsSheet,
-                title = stringResource(R.string.bottomsheet_all_apps),
+                title = stringResource(
+                    if (transferPickerActive) R.string.fullscreen_pick_app_for_transfer
+                    else R.string.bottomsheet_all_apps,
+                ),
                 loadingText = stringResource(R.string.bottomsheet_loading_apps),
                 emptyText = stringResource(R.string.bottomsheet_no_apps),
                 entries = apps.map { app ->
@@ -532,12 +554,23 @@ fun FullscreenControlScreen(
                         system = app.system,
                         onClick = {
                             showAllAppsSheet = false
-                            taskScope.launch { startApp(app.packageName) }
+                            if (transferPickerActive) {
+                                transferPickerActive = false
+                                AppRuntime.snackbar(R.string.fullscreen_transfer_to_vd_reconnecting)
+                                NativeCoreFacade.requestAppTransferReconnect(
+                                    transferStartApp = app.packageName,
+                                )
+                            } else {
+                                taskScope.launch { startApp(app.packageName) }
+                            }
                         },
                     )
                 },
                 refreshBusy = listingsRefreshBusy,
-                onDismissRequest = { showAllAppsSheet = false },
+                onDismissRequest = {
+                    showAllAppsSheet = false
+                    transferPickerActive = false
+                },
                 onRefresh = {
                     taskScope.launch(Dispatchers.Main) {
                         refreshApps()

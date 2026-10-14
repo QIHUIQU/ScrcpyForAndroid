@@ -205,6 +205,11 @@
     <string name="pref_title_gamma">Gamma</string>
     <string name="pref_summary_gamma">Adjust the gamma gain of the mirrored screen (0.50-2.00, default 1.25; also available from the fullscreen More menu)</string>
     <string name="vb_gamma">Gamma</string>
+    <string name="vb_app_transfer">App transfer</string>
+    <string name="fullscreen_pick_app_for_transfer">Pick an app to start in app transfer (virtual display)</string>
+    <string name="fullscreen_transfer_to_mirror_reconnecting">Switching back to mirror (reconnecting; the screen will blink)</string>
+    <string name="fullscreen_transfer_to_vd_reconnecting">Switching to app transfer (reconnecting; the screen will blink)</string>
+    <string name="fullscreen_transfer_failed">App transfer switch failed</string>
     <string name="pref_title_auto_jump">Jump back to remote after unlock</string>
     <string name="pref_summary_auto_jump">When this device is unlocked and a session is active, return to the remote-control screen (if the background launch is blocked, opening the app lands directly in the stream)</string>
     <string name="pref_title_pay_blackout_delay">Blackout delay after use</string>

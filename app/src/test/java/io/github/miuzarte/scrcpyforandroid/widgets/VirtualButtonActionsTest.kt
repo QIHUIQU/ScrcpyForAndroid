@@ -37,6 +37,10 @@ private class RecordingHost: VirtualButtonHost {
     override fun handleGamma() {
         calls += "gamma"
     }
+
+    override fun handleAppTransfer() {
+        calls += "appTransfer"
+    }
 }
 
 /**
@@ -194,6 +198,7 @@ class VirtualButtonActionsTest {
             VirtualButtonAction.TOGGLE_IME to "toggleIme",
             VirtualButtonAction.PASTE_LOCAL_CLIPBOARD to "pasteClipboard",
             VirtualButtonAction.GAMMA to "gamma",
+            VirtualButtonAction.APP_TRANSFER to "appTransfer",
         )
 
         expected.forEach { (action, callback) ->
