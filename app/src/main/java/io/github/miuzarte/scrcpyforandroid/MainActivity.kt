@@ -18,6 +18,7 @@ import io.github.miuzarte.scrcpyforandroid.password.PasswordRepository
 import io.github.miuzarte.scrcpyforandroid.password.hasAuthenticatedOrigin
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.AppScreenOn
+import io.github.miuzarte.scrcpyforandroid.services.UnlockJumpController
 import kotlinx.coroutines.runBlocking
 
 // 生物认证需要 FragmentActivity
@@ -30,6 +31,7 @@ class MainActivity: LocalizedActivity() {
         // no logEvent before context init
         AppRuntime.init(applicationContext)
         AppScreenOn.register(window)
+        UnlockJumpController.register(applicationContext)
 
         runBlocking {
             PasswordRepository.refresh()
@@ -55,9 +57,17 @@ class MainActivity: LocalizedActivity() {
         super.onResume()
         applyMainOrientationPolicy()
         StreamActivity.dismissActivePictureInPicture()
+
+        // BAL 降级: 解锁时被拦截的后台拉起, 改为"打开 App 直达串流"
+        if (UnlockJumpController.consumePendingJump()) {
+            if (AppRuntime.scrcpy?.isStarted() == true) {
+                startActivity(StreamActivity.createIntent(this))
+            }
+        }
     }
 
     override fun onDestroy() {
+        UnlockJumpController.unregister(applicationContext)
         AppScreenOn.unregister(window)
         // Activity 重建 (配置变更) 不能收尾会话, 只有真正退出才释放
         if (isFinishing) AppRuntime.releaseSession()

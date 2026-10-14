@@ -150,6 +150,10 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
             floatPreferencesKey("gamma_value"),
             GammaSettings.DEFAULT_GAMMA,
         )
+        val AUTO_JUMP_ON_UNLOCK = Pair(
+            booleanPreferencesKey("auto_jump_on_unlock"),
+            true,
+        )
         val FULLSCREEN_DEBUG_INFO = Pair(
             booleanPreferencesKey("fullscreen_debug_info"),
             false,
@@ -353,6 +357,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         val lowLatency: Boolean,
         val downsizeOnDecodeError: Boolean,
         val gammaValue: Float,
+        val autoJumpOnUnlock: Boolean,
         val fullscreenDebugInfo: Boolean,
         val hideSimpleConfigItems: Boolean,
         val previewCardOnTop: Boolean,
@@ -424,6 +429,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         bundleField(LOW_LATENCY) { it.lowLatency },
         bundleField(DOWNSIZE_ON_DECODE_ERROR) { it.downsizeOnDecodeError },
         bundleField(GAMMA_VALUE) { it.gammaValue },
+        bundleField(AUTO_JUMP_ON_UNLOCK) { it.autoJumpOnUnlock },
         bundleField(FULLSCREEN_DEBUG_INFO) { it.fullscreenDebugInfo },
         bundleField(HIDE_SIMPLE_CONFIG_ITEMS) { it.hideSimpleConfigItems },
         bundleField(PREVIEW_CARD_ON_TOP) { it.previewCardOnTop },
@@ -496,6 +502,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         lowLatency = preferences.read(LOW_LATENCY),
         downsizeOnDecodeError = preferences.read(DOWNSIZE_ON_DECODE_ERROR),
         gammaValue = preferences.read(GAMMA_VALUE),
+        autoJumpOnUnlock = preferences.read(AUTO_JUMP_ON_UNLOCK),
         fullscreenDebugInfo = preferences.read(FULLSCREEN_DEBUG_INFO),
         hideSimpleConfigItems = preferences.read(HIDE_SIMPLE_CONFIG_ITEMS),
         previewCardOnTop = preferences.read(PREVIEW_CARD_ON_TOP),

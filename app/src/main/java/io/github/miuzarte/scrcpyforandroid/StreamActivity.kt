@@ -15,6 +15,7 @@ import io.github.miuzarte.scrcpyforandroid.i18n.LocalizedActivity
 import io.github.miuzarte.scrcpyforandroid.pages.StreamScreen
 import io.github.miuzarte.scrcpyforandroid.services.AppScreenOn
 import io.github.miuzarte.scrcpyforandroid.services.PictureInPictureActionReceiver
+import io.github.miuzarte.scrcpyforandroid.services.UnlockJumpController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.lang.ref.WeakReference
@@ -85,6 +86,12 @@ class StreamActivity: LocalizedActivity() {
     fun configurePip(block: Builder.() -> Builder) =
         basicPip.setPictureInPictureParams(Builder().block().build())
 
+    override fun onResume() {
+        super.onResume()
+        // 流媒体界面已在前台: 解锁跳回(如曾尝试)视为已落地
+        UnlockJumpController.onStreamUiShown()
+    }
+
     override fun onDestroy() {
         currentActivityRef?.get()
             ?.takeIf { it === this }
@@ -151,6 +158,8 @@ class StreamActivity: LocalizedActivity() {
         fun createIntent(context: Context): Intent {
             return Intent(context, StreamActivity::class.java)
         }
+
+        fun isActive(): Boolean = currentActivityRef?.get() != null
 
         fun dismissActivePictureInPicture() {
             currentActivityRef?.get()

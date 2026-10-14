@@ -205,6 +205,8 @@
     <string name="pref_title_gamma">Gamma</string>
     <string name="pref_summary_gamma">Adjust the gamma gain of the mirrored screen (0.50-2.00, default 1.25; also available from the fullscreen More menu)</string>
     <string name="vb_gamma">Gamma</string>
+    <string name="pref_title_auto_jump">Jump back to remote after unlock</string>
+    <string name="pref_summary_auto_jump">When this device is unlocked and a session is active, return to the remote-control screen (if the background launch is blocked, opening the app lands directly in the stream)</string>
     <string name="pref_title_hide_simple_settings">Hide simple settings on device page</string>
     <string name="pref_summary_hide_simple_settings">When enabled, the device page only keeps More parameters, All apps, Recent tasks, and Start/Stop buttons</string>
     <string name="pref_title_preview_card_on_top">Show preview card above config</string>

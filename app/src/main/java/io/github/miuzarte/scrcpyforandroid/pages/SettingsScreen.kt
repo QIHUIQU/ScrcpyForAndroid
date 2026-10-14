@@ -554,6 +554,16 @@ fun SettingsPage(
                     },
                 )
                 SwitchPreference(
+                    title = stringResource(R.string.pref_title_auto_jump),
+                    summary = stringResource(R.string.pref_summary_auto_jump),
+                    checked = asBundle.autoJumpOnUnlock,
+                    onCheckedChange = {
+                        asBundle = asBundle.copy(
+                            autoJumpOnUnlock = it,
+                        )
+                    },
+                )
+                SwitchPreference(
                     title = stringResource(R.string.pref_title_show_virtual_buttons),
                     summary = stringResource(R.string.pref_summary_show_virtual_buttons),
                     checked = asBundle.showFullscreenVirtualButtons,
