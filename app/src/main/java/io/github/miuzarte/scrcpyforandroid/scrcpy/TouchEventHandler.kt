@@ -68,7 +68,8 @@ class TouchEventHandler(
 
     /**
      * 双指平移（仅倍率 >1× 时启用）：双指拖拽整个画面，越界由 clampPan 钳制；
-     * 模型对齐 moonlight-android `ui/video/VideoZoomGestureOverlay.java` 的拖动语义。
+     * 模型对齐 moonlight-android `ui/video/VideoZoomGestureOverlay.java` 的拖动语义：
+     * 平移期间不向被控端转发触控，且开始平移时主动取消已转发的触摸（ACTION_CANCEL）。
      * 单指保持远控触控；鼠标/触控笔事件直通（不走平移）。
      */
     private fun handlePanGesture(event: MotionEvent): Boolean {
@@ -76,7 +77,16 @@ class TouchEventHandler(
         if (scale <= 1f || isMouseLikeEvent(event)) return false
         if (event.pointerCount >= 2) {
             if (!panning) {
-                handleCancelAction(calculateContentBounds())
+                // 平移开始：立即取消已转发的触摸。必须用 ACTION_CANCEL —— 用 UP 的话，
+                // 被控端会把「第一根手指的 DOWN+UP」识别为一次点击/滑动（误触根因）；
+                // CANCEL 语义 = 手势作废，不产生点击。
+                if (activePointerIds.isNotEmpty()) {
+                    Log.i(
+                        FULLSCREEN_TOUCH_LOG_TAG,
+                        "pan start: cancel ${activePointerIds.size} forwarded pointer(s) with ACTION_CANCEL",
+                    )
+                }
+                handleCancelAction(calculateContentBounds(), UiMotionActions.CANCEL)
                 panning = true
             }
             val centroid = Offset((event.getX(0) + event.getX(1)) / 2f, (event.getY(0) + event.getY(1)) / 2f)
@@ -278,14 +288,14 @@ class TouchEventHandler(
         return true
     }
 
-    private fun releasePointer(pointerId: Int, bounds: ContentBounds) {
+    private fun releasePointer(pointerId: Int, bounds: ContentBounds, action: Int = UiMotionActions.UP) {
         if (!activePointerIds.contains(pointerId)) return
         pendingMoveJobs.remove(pointerId)?.cancel()
         val pos = activePointerPositions[pointerId] ?: Offset.Zero
         val (x, y) = mapToDevice(pos.x, pos.y, bounds)
         coroutineScope.launch {
             runCatching {
-                onInjectTouch(UiMotionActions.UP, pointerId.toLong(), x, y, 0f, 0, 0)
+                onInjectTouch(action, pointerId.toLong(), x, y, 0f, 0, 0)
             }.onFailure { e ->
                 Log.w(FULLSCREEN_TOUCH_LOG_TAG, "releasePointer failed for pointerId=$pointerId", e)
             }
@@ -296,10 +306,16 @@ class TouchEventHandler(
         pointerLabels.remove(pointerId)
     }
 
-    private fun handleCancelAction(bounds: ContentBounds): Boolean {
+    /**
+     * 释放全部活动指针。默认发 ACTION_UP（普通路径，行为不变）；平移手势开始时以
+     * [UiMotionActions.CANCEL] 调用 —— 对已转发的触摸必须发 CANCEL 而不是 UP：
+     * 被控端把 DOWN+UP 识别为一次点击/滑动（「双指拖动误触被控端界面」的根因），
+     * CANCEL 表示"手势作废"，不产生点击（对齐 moonlight 平移期间不产生触控的语义）。
+     */
+    private fun handleCancelAction(bounds: ContentBounds, action: Int = UiMotionActions.UP): Boolean {
         val toCancel = activePointerIds.toList()
         for (pointerId in toCancel) {
-            releasePointer(pointerId, bounds)
+            releasePointer(pointerId, bounds, action)
         }
         onActiveTouchCountChanged(activePointerIds.size)
         refreshTouchDebug()
