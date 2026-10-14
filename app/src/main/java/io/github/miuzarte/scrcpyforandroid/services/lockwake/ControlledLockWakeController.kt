@@ -87,13 +87,19 @@ object ControlledLockWakeController {
         }.getOrNull() else null
         if (password == null) {
             Log.i(TAG, "secure lock: no enrolled password entry for serial=$serial -> manual input")
-            AppRuntime.snackbar(R.string.controlled_lock_manual_input_needed)
+            if (serial.isNotBlank()) {
+                AppRuntime.snackbar(R.string.controlled_lock_manual_input_needed, serial)
+            } else {
+                AppRuntime.snackbar(R.string.controlled_lock_manual_input_needed_no_device)
+            }
             return
         }
         runCatching {
             try {
                 NativeAdbService.shell("input keyevent 82") // KEYCODE_MENU: 令锁屏凭证输入界面可见（被忽略亦无害）
-                delay(350)
+                // 850ms: 部分设备从 MENU 键到凭证界面真正可见需要 ~0.5-1s, 注入过早会丢字符
+                // (旧值 350ms 在低性能/无动画场景偶发失败); 后台流程, 慢一点无感
+                delay(850)
                 InjectionController.inject(password)
                 scrcpy.injectKeycode(0, 66) // KEYCODE_ENTER down/up 提交
                 scrcpy.injectKeycode(1, 66)

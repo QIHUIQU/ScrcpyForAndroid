@@ -49,6 +49,10 @@ private class RecordingHost: VirtualButtonHost {
     override fun handleAppTransfer() {
         calls += "appTransfer"
     }
+
+    override fun handleVdResolution() {
+        calls += "vdResolution"
+    }
 }
 
 /**
@@ -209,6 +213,7 @@ class VirtualButtonActionsTest {
             VirtualButtonAction.ROTATE_SCREEN to "rotateScreen",
             VirtualButtonAction.SCREEN_SCALE to "screenScale",
             VirtualButtonAction.APP_TRANSFER to "appTransfer",
+            VirtualButtonAction.VD_RESOLUTION to "vdResolution",
         )
 
         expected.forEach { (action, callback) ->

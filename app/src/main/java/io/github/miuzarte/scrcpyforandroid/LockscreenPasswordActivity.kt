@@ -18,8 +18,10 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Password
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -34,6 +36,7 @@ import io.github.miuzarte.scrcpyforandroid.password.*
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.ReorderableList
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
+import io.github.miuzarte.scrcpyforandroid.services.LocalInputService
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
 import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
@@ -245,23 +248,27 @@ private fun LockscreenPasswordScreen(
                 if (blurActive) Modifier.layerBackdrop(blurBackdrop)
                 else Modifier,
         ) {
+            // 关闭验证的路径被两处复用: 开关本身 + 序列号卡片上的「一键关闭」(自动解锁配置流程)
+            val toggleRequireAuth: (Boolean) -> Unit = { checked ->
+                if (checked) {
+                    asBundle = asBundle.copy(passwordRequireAuth = true)
+                } else {
+                    if (entries.any { it.cipherText != null }) {
+                        showDisableDialog = true
+                    } else {
+                        asBundle = asBundle.copy(passwordRequireAuth = false)
+                    }
+                }
+            }
             LockscreenPasswordPage(
                 contentPadding = pagePadding,
                 scrollBehavior = scrollBehavior,
                 entries = entries,
                 requireAuth = asBundle.passwordRequireAuth,
                 canAuthenticate = BiometricGate.canAuthenticate(),
-                onToggleRequireAuth = { checked ->
-                    if (checked) {
-                        asBundle = asBundle.copy(passwordRequireAuth = true)
-                    } else {
-                        if (entries.any { it.cipherText != null }) {
-                            showDisableDialog = true
-                        } else {
-                            asBundle = asBundle.copy(passwordRequireAuth = false)
-                        }
-                    }
-                },
+                onToggleRequireAuth = toggleRequireAuth,
+                connectedDeviceSerial = AppRuntime.currentConnectedDevice?.serial?.takeIf { it.isNotBlank() },
+                onQuickDisableRequireAuth = { toggleRequireAuth(false) },
                 onCreate = {
                     pendingCreate = true
                 },
@@ -454,12 +461,15 @@ private fun LockscreenPasswordPage(
     requireAuth: Boolean,
     canAuthenticate: Boolean,
     onToggleRequireAuth: (Boolean) -> Unit,
+    connectedDeviceSerial: String?,
+    onQuickDisableRequireAuth: () -> Unit,
     onCreate: () -> Unit,
     onRename: (PasswordEntry) -> Unit,
     onDelete: (PasswordEntry) -> Unit,
     onMove: (Int, Int) -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
 
     LazyColumn(
         contentPadding = contentPadding,
@@ -478,6 +488,64 @@ private fun LockscreenPasswordPage(
                     enabled = canAuthenticate || requireAuth,
                     onCheckedChange = onToggleRequireAuth,
                 )
+            }
+        }
+
+        // 自动解锁配置指导 (C): 显示当前被控端序列号 + 一键复制, 并在验证开关挡住自动解锁时给出关闭入口
+        if (connectedDeviceSerial != null) item {
+            Card {
+                Column(
+                    modifier = Modifier.padding(
+                        horizontal = UiSpacing.Large,
+                        vertical = UiSpacing.MediumLarge,
+                    ),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = stringResource(R.string.password_serial_card_title),
+                            fontSize = textStyles.body2.fontSize,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(
+                            text = stringResource(R.string.password_serial_copy),
+                            onClick = {
+                                haptic.contextClick()
+                                LocalInputService.setClipboardText(context, connectedDeviceSerial)
+                                AppRuntime.snackbar(R.string.password_serial_copied)
+                            },
+                        )
+                    }
+                    Text(
+                        text = connectedDeviceSerial,
+                        fontSize = textStyles.body2.fontSize,
+                        color = colorScheme.primary,
+                    )
+                    Text(
+                        text = stringResource(R.string.password_autofill_hint),
+                        fontSize = textStyles.body2.fontSize,
+                        color = colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(top = UiSpacing.Medium),
+                    )
+                    if (requireAuth) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = stringResource(R.string.password_autofill_auth_blocker),
+                                fontSize = textStyles.body2.fontSize,
+                                color = colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = UiSpacing.Medium),
+                            )
+                            TextButton(
+                                text = stringResource(R.string.password_autofill_quick_disable),
+                                onClick = {
+                                    haptic.contextClick()
+                                    onQuickDisableRequireAuth()
+                                },
+                            )
+                        }
+                    }
+                }
             }
         }
 

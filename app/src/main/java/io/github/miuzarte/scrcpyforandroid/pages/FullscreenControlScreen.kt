@@ -34,6 +34,7 @@ import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.R
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.password.rememberPasswordPickerEntries
+import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GamepadHid
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GamepadInputHandler
@@ -41,6 +42,7 @@ import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
 import io.github.miuzarte.scrcpyforandroid.scrcpy.VideoScaleSettings
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.scrcpy.TouchEventHandler
+import io.github.miuzarte.scrcpyforandroid.scrcpy.TransferOptions
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.LocalInputService
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
@@ -245,6 +247,9 @@ fun FullscreenControlScreen(
     var imeRequestToken by rememberSaveable { mutableIntStateOf(0) }
     var gammaPanelVisible by rememberSaveable { mutableStateOf(false) }
     var screenScalePanelVisible by rememberSaveable { mutableStateOf(false) }
+    var vdResolutionPanelVisible by rememberSaveable { mutableStateOf(false) }
+    var vdWidthInput by rememberSaveable { mutableStateOf("768") }
+    var vdHeightInput by rememberSaveable { mutableStateOf("1024") }
 
     DisposableEffect(activity) {
         val window = activity?.window
@@ -361,6 +366,10 @@ fun FullscreenControlScreen(
 
             override fun handleScreenScale() {
                 screenScalePanelVisible = !screenScalePanelVisible
+            }
+
+            override fun handleVdResolution() {
+                vdResolutionPanelVisible = !vdResolutionPanelVisible
             }
 
             override fun handleAppTransfer() {
@@ -664,6 +673,83 @@ fun FullscreenControlScreen(
                         onClick = {
                             asBundle = asBundle.copy(videoScale = VideoScaleSettings.DEFAULT_SCALE)
                             NativeCoreFacade.setVideoScale(VideoScaleSettings.DEFAULT_SCALE)
+                        },
+                    )
+                }
+            }
+
+            if (vdResolutionPanelVisible) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 120.dp)
+                        .width(320.dp)
+                        .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.vd_resolution_title),
+                        color = Color.White,
+                        fontSize = 14.sp,
+                    )
+                    Text(
+                        text = stringResource(R.string.vd_resolution_current, asBundle.transferVdSize),
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
+                    )
+                    // 预设: 点一下直接保存
+                    listOf(
+                        listOf("768x1024", "1024x768"),
+                        listOf("800x1280", "1080x1920"),
+                    ).forEach { rowPresets ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            rowPresets.forEach { preset ->
+                                TextButton(
+                                    text = preset,
+                                    onClick = {
+                                        asBundle = asBundle.copy(transferVdSize = preset)
+                                        AppRuntime.snackbar(R.string.vd_resolution_saved)
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    // 自定义宽 x 高
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SuperTextField(
+                            value = vdWidthInput,
+                            onValueChange = { vdWidthInput = it.filter(Char::isDigit).take(5) },
+                            onFocusLost = {},
+                            label = stringResource(R.string.vd_resolution_width),
+                            useLabelAsPlaceholder = true,
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = "×",
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                        )
+                        SuperTextField(
+                            value = vdHeightInput,
+                            onValueChange = { vdHeightInput = it.filter(Char::isDigit).take(5) },
+                            onFocusLost = {},
+                            label = stringResource(R.string.vd_resolution_height),
+                            useLabelAsPlaceholder = true,
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    TextButton(
+                        text = stringResource(R.string.cd_save),
+                        onClick = {
+                            val size = TransferOptions.normalizeVdSize("${vdWidthInput}x${vdHeightInput}")
+                            if (size == null) {
+                                AppRuntime.snackbar(R.string.vd_resolution_invalid)
+                            } else {
+                                asBundle = asBundle.copy(transferVdSize = size)
+                                AppRuntime.snackbar(R.string.vd_resolution_saved)
+                            }
                         },
                     )
                 }

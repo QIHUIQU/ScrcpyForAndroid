@@ -1019,7 +1019,11 @@ fun ScrcpyVideoSurface(
 
     LaunchedEffect(imeRequestToken, currentSurfaceView) {
         if (imeRequestToken == 0) return@LaunchedEffect
-        val surfaceView = currentSurfaceView ?: return@LaunchedEffect
+        val surfaceView = currentSurfaceView ?: run {
+            Log.i("ScrcpyIme", "imeRequest ignored: surface view not ready (token=$imeRequestToken)")
+            return@LaunchedEffect
+        }
+        Log.i("ScrcpyIme", "imeRequest: showing keyboard (token=$imeRequestToken)")
         surfaceView.setCommitTextEnabled(true)
         LocalInputService.showSoftKeyboard(surfaceView)
     }

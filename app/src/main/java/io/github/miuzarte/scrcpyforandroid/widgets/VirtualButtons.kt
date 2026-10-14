@@ -215,6 +215,14 @@ enum class VirtualButtonAction(
         behavior = VirtualButtonBehavior.HOST_ACTION,
         fullscreenOnly = true,
     ),
+    VD_RESOLUTION(
+        id = "vd_resolution",
+        titleResId = R.string.vb_vd_resolution,
+        icon = Icons.Rounded.AspectRatio,
+        keycode = null,
+        behavior = VirtualButtonBehavior.HOST_ACTION,
+        fullscreenOnly = true,
+    ),
     EXIT_FULLSCREEN(
         id = "exit_fullscreen",
         titleResId = R.string.vb_exit_fullscreen,
@@ -265,6 +273,9 @@ interface VirtualButtonHost {
 
     // 切换屏幕镜像 / 应用流转（重连式）
     fun handleAppTransfer() = Unit
+
+    // 打开/关闭虚拟屏幕分辨率快捷面板（应用流转用；手动摸索合适分辨率）
+    fun handleVdResolution() = Unit
 }
 
 object VirtualButtonActions {
@@ -382,6 +393,7 @@ object VirtualButtonActions {
                 VirtualButtonAction.ROTATE_SCREEN -> host.handleRotateScreen()
                 VirtualButtonAction.SCREEN_SCALE -> host.handleScreenScale()
                 VirtualButtonAction.APP_TRANSFER -> host.handleAppTransfer()
+                VirtualButtonAction.VD_RESOLUTION -> host.handleVdResolution()
                 // 该动作标了 HOST_ACTION 却没有分发目标: 属于接错线, 直接暴露而不是静默吞掉
                 else -> error("unhandled host action: ${action.id}")
             }

@@ -8,6 +8,7 @@ import io.github.miuzarte.scrcpyforandroid.nativecore.VideoSurfacePolicy
 import io.github.miuzarte.scrcpyforandroid.nativecore.VideoDecoderController
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
+import io.github.miuzarte.scrcpyforandroid.scrcpy.TransferOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.VideoScaleSettings
 import io.github.miuzarte.scrcpyforandroid.services.blackout.PaymentBlackoutCoordinator
 import io.github.miuzarte.scrcpyforandroid.services.lockwake.ControlledLockWakeController
@@ -426,15 +427,23 @@ object NativeCoreFacade {
         if (isRestarting) return
         val base = cachedClientOptions ?: return
         _restartInProgress.value = true
+        val plan = TransferOptions.plan(
+            currentNewDisplay = base.newDisplay,
+            configuredVdSize = Storage.appSettings.bundleState.value.transferVdSize,
+            transferStartApp = transferStartApp,
+        )
         val newOptions = runCatching {
-            if (transferStartApp != null) {
-                base.copy(
-                    newDisplay = base.newDisplay.ifBlank { APP_TRANSFER_DEFAULT_VD_SIZE },
-                    startApp = transferStartApp,
-                ).fix().validate()
-            } else {
-                base.copy(newDisplay = "", startApp = "").fix().validate()
+            var options = base.copy(
+                newDisplay = plan.newDisplay,
+                startApp = plan.startApp,
+            )
+            val keepVdContent = plan.keepVdContent
+            if (keepVdContent != null) {
+                // 流转会话必须以 vd_destroy_content=false 启动: 再次切换/切回镜像时,
+                // 虚拟显示被关闭会把应用移到主屏继续运行, 而不是连同应用一起销毁 (A 回归修复)
+                options = options.copy(vdDestroyContent = keepVdContent)
             }
+            options.fix().validate()
         }.getOrElse { error ->
             _restartInProgress.value = false
             Log.w(TAG, "requestAppTransferReconnect(): invalid options", error)
@@ -443,8 +452,9 @@ object NativeCoreFacade {
         }
         Log.i(
             TAG,
-            "requestAppTransferReconnect(): transfer=${transferStartApp != null} " +
-                "newDisplay=${newOptions.newDisplay} startApp=${newOptions.startApp}",
+            "requestAppTransferReconnect(): transfer=${plan.transfer} " +
+                "newDisplay=${newOptions.newDisplay} startApp=${newOptions.startApp} " +
+                "vdDestroyContent=${newOptions.vdDestroyContent}",
         )
         // 不持有 sessionLifecycleMutex (见 restartSessionWith 注释)
         lifecycleScope.launch {
@@ -516,6 +526,4 @@ object NativeCoreFacade {
 
     private const val TAG = "NativeCoreFacade"
     private const val RESET_VIDEO_MIN_INTERVAL_MS = 500L
-    /** 应用流转虚拟显示默认尺寸 (未在 All Options 指定 new_display 时使用) */
-    private const val APP_TRANSFER_DEFAULT_VD_SIZE = "768x1024"
 }

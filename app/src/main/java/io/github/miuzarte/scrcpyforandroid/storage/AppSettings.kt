@@ -1,6 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.storage
 
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
+import io.github.miuzarte.scrcpyforandroid.scrcpy.TransferOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.VideoScaleSettings
 import io.github.miuzarte.scrcpyforandroid.services.blackout.PaymentBlackoutConfig
 import android.content.Context
@@ -349,6 +350,12 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
             true,
         )
 
+        // 应用流转虚拟显示尺寸（全屏「虚拟屏幕分辨率」面板可改；进入流转时生效）
+        val TRANSFER_VD_SIZE = Pair(
+            stringPreferencesKey("transfer_vd_size"),
+            TransferOptions.DEFAULT_VD_SIZE,
+        )
+
         val FILE_MANAGER_SORT_BY = Pair(
             stringPreferencesKey("file_manager_sort_by"),
             "NAME",
@@ -396,6 +403,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         val gammaValue: Float,
         val videoScale: Float,
         val videoScaleLocked: Boolean,
+        val transferVdSize: String,
         val autoJumpOnUnlock: Boolean,
         val payBlackoutDelaySec: Int,
         val payBlackoutFallbackEnabled: Boolean,
@@ -477,6 +485,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         bundleField(GAMMA_VALUE) { it.gammaValue },
         bundleField(VIDEO_SCALE) { it.videoScale },
         bundleField(VIDEO_SCALE_LOCKED) { it.videoScaleLocked },
+        bundleField(TRANSFER_VD_SIZE) { it.transferVdSize },
         bundleField(AUTO_JUMP_ON_UNLOCK) { it.autoJumpOnUnlock },
         bundleField(PAY_BLACKOUT_DELAY_SEC) { it.payBlackoutDelaySec },
         bundleField(PAY_BLACKOUT_FALLBACK_ENABLED) { it.payBlackoutFallbackEnabled },
@@ -559,6 +568,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         gammaValue = preferences.read(GAMMA_VALUE),
         videoScale = preferences.read(VIDEO_SCALE),
         videoScaleLocked = preferences.read(VIDEO_SCALE_LOCKED),
+        transferVdSize = preferences.read(TRANSFER_VD_SIZE),
         autoJumpOnUnlock = preferences.read(AUTO_JUMP_ON_UNLOCK),
         payBlackoutDelaySec = preferences.read(PAY_BLACKOUT_DELAY_SEC),
         payBlackoutFallbackEnabled = preferences.read(PAY_BLACKOUT_FALLBACK_ENABLED),

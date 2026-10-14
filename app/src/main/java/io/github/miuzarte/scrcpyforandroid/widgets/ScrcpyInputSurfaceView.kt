@@ -3,6 +3,7 @@ package io.github.miuzarte.scrcpyforandroid.widgets
 import android.content.Context
 import android.text.InputType
 import android.util.AttributeSet
+import android.util.Log
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -34,8 +35,13 @@ class ScrcpyInputSurfaceView @JvmOverloads constructor(
     fun setCommitTextEnabled(enabled: Boolean) {
         commitTextEnabled = enabled
         updateFocusability()
-        if (enabled) requestFocus()
-        else if (!gamepadCaptureEnabled) clearFocus()
+        if (enabled) {
+            val focused = requestFocus()
+            Log.i(TAG, "setCommitTextEnabled(true): requestFocus=$focused hasFocus=${hasFocus()}")
+        } else if (!gamepadCaptureEnabled) {
+            clearFocus()
+            Log.i(TAG, "setCommitTextEnabled(false): clearFocus")
+        }
     }
 
     /** Enable/disable gamepad event capture, requesting focus so SOURCE_GAMEPAD events reach this view. */
@@ -109,23 +115,32 @@ class ScrcpyInputSurfaceView @JvmOverloads constructor(
     }
 
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
-        if (!commitTextEnabled) return super.onCreateInputConnection(outAttrs)
+        if (!commitTextEnabled) {
+            Log.i(TAG, "onCreateInputConnection: commitText disabled -> super")
+            return super.onCreateInputConnection(outAttrs)
+        }
+        Log.i(TAG, "onCreateInputConnection: serving IME (commitTextEnabled)")
 
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI
-        return object: BaseInputConnection(this, false) {
+        // 第二个参数 true = 完整编辑器模式: 让 IME 的组合/候选状态机 (setComposingText/选区)
+        // 得到确认, 降低中文输入法中途清空组合导致丢字的概率; 文本提交仍由 commitText 拦截
+        return object: BaseInputConnection(this, true) {
             override fun commitText(text: CharSequence, newCursorPosition: Int): Boolean {
+                Log.i(TAG, "commitText(len=${text.length})")
                 if (inputCallbacks?.handleCommitText(text) == true) return true
                 return super.commitText(text, newCursorPosition)
             }
 
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+                Log.i(TAG, "deleteSurroundingText(before=$beforeLength, after=$afterLength)")
                 if (inputCallbacks?.handleDeleteSurroundingText(beforeLength, afterLength) == true)
                     return true
                 return super.deleteSurroundingText(beforeLength, afterLength)
             }
 
             override fun sendKeyEvent(event: KeyEvent): Boolean {
+                Log.d(TAG, "sendKeyEvent(keyCode=${event.keyCode} action=${event.action})")
                 if (isGameController(event.deviceId)) {
                     onGamepadKeyEvent?.invoke(event)
                     return true
@@ -135,5 +150,9 @@ class ScrcpyInputSurfaceView @JvmOverloads constructor(
                 return super.sendKeyEvent(event)
             }
         }
+    }
+
+    companion object {
+        private const val TAG = "ScrcpyIme"
     }
 }
