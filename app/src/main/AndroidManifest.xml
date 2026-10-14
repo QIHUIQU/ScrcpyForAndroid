@@ -63,8 +63,7 @@
             android:name=".StreamActivity"
             android:configChanges="keyboardHidden|orientation|screenSize|smallestScreenSize"
             android:exported="false"
-            android:resizeableActivity="true"
-            android:supportsPictureInPicture="true" />
+            android:resizeableActivity="true" />
 
         <activity
             android:name=".LockscreenPasswordActivity"

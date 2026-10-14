@@ -258,7 +258,7 @@
     <string name="pref_title_floating_button_bg_opacity">Floating button background opacity</string>
     <string name="pref_title_floating_button_ring_opacity">Floating button ring opacity</string>
     <string name="pref_title_fullscreen_compat_mode">Fullscreen compatibility mode</string>
-    <string name="pref_summary_fullscreen_compat_mode">When enabled, the fullscreen control page no longer spans Activities; Picture-in-Picture will be unavailable</string>
+    <string name="pref_summary_fullscreen_compat_mode">When enabled, the fullscreen control page no longer spans Activities</string>
 
     <!-- Settings - scrcpy-server -->
     <string name="section_scrcpy_server">scrcpy-server</string>
@@ -411,7 +411,6 @@
     <string name="reorder_devices_title">Quick device sort</string>
 
     <!-- Lockscreen Password -->
-    <string name="password_stop_mirroring">Stop screen mirroring</string>
     <string name="password_authenticate_create">Authenticate to create a new password</string>
     <string name="password_authenticate_subtitle">Verify your identity to continue</string>
     <string name="password_auth_to_disable">Authenticate to disable password protection</string>
@@ -556,7 +555,7 @@
     <string name="scrcpyopt_show_touches">Enable \"show touches\" on start, restore the initial value on exit</string>
     <string name="scrcpyopt_fullscreen">Start in fullscreen</string>
     <string name="scrcpyopt_disable_screensaver">Disable screensaver while scrcpy is running</string>
-    <string name="scrcpyopt_disable_screensaver_note">Be aware of burn-in; this also affects picture-in-picture</string>
+    <string name="scrcpyopt_disable_screensaver_note">Be aware of burn-in</string>
     <string name="scrcpyopt_kill_adb_on_close">Kill adb when scrcpy terminates</string>
     <string name="scrcpyopt_audio_codec">Audio codec</string>
     <string name="scrcpyopt_audio_bitrate">Audio bitrate</string>

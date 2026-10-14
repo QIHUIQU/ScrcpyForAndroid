@@ -257,7 +257,7 @@
     <string name="pref_title_floating_button_bg_opacity">悬浮球背景透明度</string>
     <string name="pref_title_floating_button_ring_opacity">悬浮球白环透明度</string>
     <string name="pref_title_fullscreen_compat_mode">全屏兼容模式</string>
-    <string name="pref_summary_fullscreen_compat_mode">启用后全屏控制页不再跨 Activity，会导致画中画不可用</string>
+    <string name="pref_summary_fullscreen_compat_mode">启用后全屏控制页不再跨 Activity</string>
 
     <!-- Settings - scrcpy-server -->
     <string name="section_scrcpy_server">scrcpy-server</string>
@@ -410,7 +410,6 @@
     <string name="reorder_devices_title">快速设备排序</string>
 
     <!-- Lockscreen Password -->
-    <string name="password_stop_mirroring">停止投屏</string>
     <string name="password_authenticate_create">验证以创建新密码</string>
     <string name="password_authenticate_subtitle">验证身份以继续</string>
     <string name="password_auth_to_disable">验证以禁用密码保护</string>
@@ -555,7 +554,7 @@
     <string name="scrcpyopt_show_touches">显示物理触控</string>
     <string name="scrcpyopt_fullscreen">启动后进入全屏</string>
     <string name="scrcpyopt_disable_screensaver">scrcpy 启动后保持本机屏幕常亮</string>
-    <string name="scrcpyopt_disable_screensaver_note">注意防烧屏，画中画也生效</string>
+    <string name="scrcpyopt_disable_screensaver_note">注意防烧屏</string>
     <string name="scrcpyopt_kill_adb_on_close">scrcpy 结束时断开 adb</string>
     <string name="scrcpyopt_audio_codec">音频编码</string>
     <string name="scrcpyopt_audio_bitrate">音频码率</string>

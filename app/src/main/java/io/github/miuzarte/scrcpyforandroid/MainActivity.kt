@@ -62,7 +62,6 @@ class MainActivity: LocalizedActivity() {
     override fun onResume() {
         super.onResume()
         applyMainOrientationPolicy()
-        StreamActivity.dismissActivePictureInPicture()
 
         // 回到前台(解锁/从后台打开)且会话活跃: 直达串流界面.
         // 会话不活跃或串流已在前台时不做任何事, 绝不把用户弹到别处.

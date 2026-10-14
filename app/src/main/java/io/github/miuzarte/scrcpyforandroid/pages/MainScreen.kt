@@ -707,7 +707,6 @@ fun MainScreen() {
             FullscreenControlRoute(
                 scrcpy = scrcpy,
                 onBack = rootNavigator.pop,
-                isInPip = false,
                 autoExitOnStop = true,
             )
         }

@@ -1,8 +1,6 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
 import android.content.pm.ActivityInfo
-import android.graphics.Rect
-import android.util.Rational
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.*
 import androidx.lifecycle.Lifecycle
@@ -31,48 +29,9 @@ fun StreamScreen(activity: StreamActivity) {
     }
     val asBundle by Storage.appSettings.bundleState.collectAsState()
 
-    val isInPip by activity.pipModeState.collectAsState()
-
-    var pipSourceRectHint by remember { mutableStateOf<Rect?>(null) }
-    var lastPipAspectRatio by remember { mutableStateOf<Rational?>(null) }
-    var lastPipOrientationLandscape by remember { mutableStateOf<Boolean?>(null) }
-
-    DisposableEffect(isInPip) {
+    DisposableEffect(Unit) {
         onDispose {
             VideoOutputTargetState.set(VideoOutputTarget.PREVIEW)
-        }
-    }
-
-    val currentSession by scrcpy.currentSessionState.collectAsState()
-
-    LaunchedEffect(
-        activity, isInPip,
-        currentSession?.width, currentSession?.height,
-    ) {
-        val session = currentSession ?: return@LaunchedEffect
-
-        val isLandscape = session.width >= session.height
-        if (lastPipAspectRatio != null && lastPipOrientationLandscape == isLandscape) {
-            // 一定要只在视频比例变更时才更新,
-            // .setAspectRatio() 多次传递相同的值时,
-            // 内部会自行应用其倒数
-            return@LaunchedEffect
-        }
-        lastPipOrientationLandscape = isLandscape
-
-        val pipAspectRatio = Rational(
-            session.width.coerceAtLeast(1),
-            session.height.coerceAtLeast(1),
-        ).also { ratio ->
-            lastPipAspectRatio = ratio
-        }
-
-        activity.configurePip {
-            setEnabled(true)
-            setAspectRatio(pipAspectRatio)
-            setSourceRectHint(pipSourceRectHint)
-            setSeamlessResizeEnabled(true)
-            setCloseAction(activity.pipStopAction)
         }
     }
 
@@ -105,11 +64,6 @@ fun StreamScreen(activity: StreamActivity) {
             FullscreenControlRoute(
                 scrcpy = scrcpy,
                 onBack = activity::finish,
-                isInPip = isInPip,
-                onVideoBoundsInWindowChanged = {
-                    // 记录下一次进入 PiP 时可用的 sourceRectHint
-                    pipSourceRectHint = it
-                },
             )
         }
     }
@@ -119,9 +73,7 @@ fun StreamScreen(activity: StreamActivity) {
 fun FullscreenControlRoute(
     scrcpy: Scrcpy,
     onBack: () -> Unit,
-    isInPip: Boolean = false,
     autoExitOnStop: Boolean = false,
-    onVideoBoundsInWindowChanged: (Rect?) -> Unit = {},
 ) {
     val activity = LocalActivity.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -161,18 +113,14 @@ fun FullscreenControlRoute(
     FullscreenControlScreen(
         scrcpy = scrcpy,
         onBack = onBack,
-        isInPip = isInPip,
         onVideoSizeChanged = { width, height ->
-            if (!isInPip) {
-                activity?.requestedOrientation =
-                    fullscreenRequestedOrientation(
-                        width = width,
-                        height = height,
-                        ignoreSystemRotationLock = asBundle.fullscreenControlIgnoreSystemRotationLock,
-                    )
-            }
+            activity?.requestedOrientation =
+                fullscreenRequestedOrientation(
+                    width = width,
+                    height = height,
+                    ignoreSystemRotationLock = asBundle.fullscreenControlIgnoreSystemRotationLock,
+                )
         },
-        onVideoBoundsInWindowChanged = onVideoBoundsInWindowChanged,
     )
 }
 

@@ -2,7 +2,6 @@ package io.github.miuzarte.scrcpyforandroid.pages
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.util.Log
 import android.view.KeyEvent
@@ -60,9 +59,7 @@ import top.yukonga.miuix.kmp.basic.Text
 fun FullscreenControlScreen(
     scrcpy: Scrcpy,
     onBack: () -> Unit,
-    isInPip: Boolean,
     onVideoSizeChanged: (width: Int, height: Int) -> Unit,
-    onVideoBoundsInWindowChanged: (Rect?) -> Unit,
 ) {
     val activity = LocalActivity.current
     val context = LocalContext.current
@@ -481,14 +478,12 @@ fun FullscreenControlScreen(
                 scrcpy = scrcpy,
                 session = session,
                 onDismiss = onBack,
-                showDebugInfo = fullscreenDebugInfo && !isInPip,
+                showDebugInfo = fullscreenDebugInfo,
                 currentFps = currentFps,
                 gamepadDeviceName = asBundle.gamepadDeviceName.ifBlank { GamepadHid.NAME },
                 imeRequestToken = imeRequestToken,
                 enableBackHandler = false,
-                interactive = !isInPip,
                 stretchFill = asBundle.stretchFill,
-                onVideoBoundsInWindowChanged = onVideoBoundsInWindowChanged,
                 onImeCommitText = ::commitImeText,
                 onInjectTouch = { action, pointerId, x, y, pressure, actionButton, buttons ->
                     withContext(Dispatchers.IO) {
@@ -510,7 +505,7 @@ fun FullscreenControlScreen(
                 },
             )
 
-            if (showFullscreenVirtualButtons && !isInPip) {
+            if (showFullscreenVirtualButtons) {
                 bar.Fullscreen(
                     modifier = Modifier.align(
                         when (fullscreenVirtualButtonDock) {
@@ -528,7 +523,7 @@ fun FullscreenControlScreen(
                 )
             }
 
-            if (asBundle.showFullscreenFloatingButton && !isInPip) {
+            if (asBundle.showFullscreenFloatingButton) {
                 ballBar.FloatingBall(
                     modifier = Modifier.fillMaxSize(),
                     onAction = ::handleButtonAction,
@@ -732,7 +727,6 @@ fun FullscreenControlPage(
     enableBackHandler: Boolean = true,
     interactive: Boolean = true,
     stretchFill: Boolean = false,
-    onVideoBoundsInWindowChanged: (Rect?) -> Unit = {},
     onImeCommitText: suspend (String) -> Unit,
     onInjectTouch: suspend (
         action: Int,
@@ -863,18 +857,7 @@ fun FullscreenControlPage(
         ) {
             ScrcpyVideoSurface(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .onGloballyPositioned { coordinates ->
-                        val bounds = coordinates.boundsInWindow()
-                        onVideoBoundsInWindowChanged(
-                            Rect(
-                                bounds.left.toInt(),
-                                bounds.top.toInt(),
-                                bounds.right.toInt(),
-                                bounds.bottom.toInt(),
-                            ),
-                        )
-                    },
+                    .fillMaxSize(),
                 session = session,
                 imeRequestToken = imeRequestToken,
                 onImeCommitText = onImeCommitText,
@@ -951,9 +934,4 @@ fun FullscreenControlPage(
         }
     }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            onVideoBoundsInWindowChanged(null)
-        }
-    }
 }
