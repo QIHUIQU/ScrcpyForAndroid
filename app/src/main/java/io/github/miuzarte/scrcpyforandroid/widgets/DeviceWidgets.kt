@@ -1,5 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.widgets
 
+import android.util.Log
+
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
@@ -261,6 +263,14 @@ internal fun PreviewCard(
         label = "preview-controls",
     )
     val lifecycleOwner = LocalLifecycleOwner.current
+    // 预览视频面只在"本 entry 到达 RESUMED"（交互顶部）时存在。
+    // miuix NavDisplay 会把被覆盖的 entry 保持在 composition 中（转场 opaqueDepth=1，
+    // "covered entry stays composed"）——若其 SurfaceView 仍存活，旋转重建时机下其合成层
+    // 会盖到全屏视频面之上，形成"横屏小窗"（2026-10-14 真机取证）。被覆盖 entry 的
+    // lifecycle 上限是 STARTED（永不 RESUMED），因此以 RESUMED 作为存在判据。
+    var previewSurfaceActive by remember {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
 
     LaunchedEffect(autoBringIntoView) {
@@ -305,10 +315,23 @@ internal fun PreviewCard(
         }
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    previewSurfaceActive = true
+                    Log.i("PreviewCard", "preview video surface active (ON_RESUME)")
+                }
+
+                Lifecycle.Event.ON_PAUSE -> {
+                    previewSurfaceActive = false
+                    Log.i("PreviewCard", "preview video surface hidden (ON_PAUSE; covered or backgrounded)")
+                }
+
                 Lifecycle.Event.ON_START -> VideoOutputTargetState.set(VideoOutputTarget.PREVIEW)
-                Lifecycle.Event.ON_STOP ->
+
+                Lifecycle.Event.ON_STOP -> {
+                    previewSurfaceActive = false
                     if (VideoOutputTargetState.current.value == VideoOutputTarget.PREVIEW)
                         VideoOutputTargetState.set(VideoOutputTarget.NONE)
+                }
 
                 else -> Unit
             }
@@ -379,15 +402,18 @@ internal fun PreviewCard(
                         .align(Alignment.Center)
                         .then(fittedModifier),
                 ) {
-                    ScrcpyVideoSurface(
-                        modifier = Modifier.fillMaxSize(),
-                        primary = false,
-                        session = sessionInfo,
-                        imeRequestToken = imeRequestToken,
-                        onImeCommitText = onImeCommitText,
-                        onImeDeleteSurroundingText = onImeDeleteSurroundingText,
-                        onImeKeyEvent = onImeKeyEvent,
-                    )
+                    // 被覆盖/后台时移除视频面（见 previewSurfaceActive 注释），避免次级表面残留
+                    if (previewSurfaceActive) {
+                        ScrcpyVideoSurface(
+                            modifier = Modifier.fillMaxSize(),
+                            primary = false,
+                            session = sessionInfo,
+                            imeRequestToken = imeRequestToken,
+                            onImeCommitText = onImeCommitText,
+                            onImeDeleteSurroundingText = onImeDeleteSurroundingText,
+                            onImeKeyEvent = onImeKeyEvent,
+                        )
+                    }
                 }
             }
 
@@ -1104,6 +1130,10 @@ fun ScrcpyVideoSurface(
                         ) {
                             if (width <= 0 || height <= 0) return
                             if (!holder.surface.isValid) return
+                            Log.i(
+                                "ScrcpyVideoSurface",
+                                "surfaceChanged: primary=$primary size=${width}x${height}",
+                            )
                             val surface = holder.surface
                             currentSurface = surface
                             if (latestSession != null) {
