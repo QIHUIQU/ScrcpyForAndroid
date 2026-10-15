@@ -1049,13 +1049,13 @@ fun SettingsPage(
                     mutableStateOf(CrashRecoveryAccessibilityService.isEnabled(context))
                 }
                 var accessibilityConnected by remember {
-                    mutableStateOf(CrashRecoveryAccessibilityService.connected)
+                    mutableStateOf(CrashRecoveryAccessibilityService.isConnected(context))
                 }
                 DisposableEffect(lifecycleOwner) {
                     val observer = LifecycleEventObserver { _, event ->
                         if (event == Lifecycle.Event.ON_RESUME) {
                             accessibilityEnabled = CrashRecoveryAccessibilityService.isEnabled(context)
-                            accessibilityConnected = CrashRecoveryAccessibilityService.connected
+                            accessibilityConnected = CrashRecoveryAccessibilityService.isConnected(context)
                         }
                     }
                     lifecycleOwner.lifecycle.addObserver(observer)

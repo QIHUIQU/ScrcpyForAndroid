@@ -36,6 +36,15 @@ internal object RecoveryPrefs {
     const val TARGET_TYPE = "target_type"
     const val TARGET_PROFILE = "profile"
     const val LAUNCH_PENDING = "launch_pending"
+
+    /**
+     * 崩溃恢复开关的镜像 (主进程在会话开始时写入)。触发源可能运行在独立 `:a11y` 进程,
+     * 那里不能安全访问 DataStore, 所以恢复判据读这个布尔而不是 DataStore。
+     */
+    const val ENABLED_MIRROR = "recovery_enabled"
+
+    /** 无障碍服务(运行在 `:a11y`)发布的连接状态; 仅设置页展示用, 不参与恢复判据。 */
+    const val A11Y_CONNECTED = "a11y_connected"
 }
 
 /** 崩溃前活跃会话目标 (恢复重连复用; 与 ACTIVE/TASK_REMOVED 同一 prefs 文件)。 */
@@ -56,11 +65,18 @@ internal object RecoveryIntent {
     fun record(context: Context, target: ConnectionTarget, profileId: String) {
         prefs(context).edit()
             .putBoolean(RecoveryPrefs.ACTIVE, true)
+            // 镜像当前开关: 崩溃恢复的触发源可能不在主进程, 不能在那边读 DataStore。
+            .putBoolean(
+                RecoveryPrefs.ENABLED_MIRROR,
+                Storage.appSettings.bundleState.value.crashRecoveryEnabled,
+            )
             .putString(RecoveryPrefs.TARGET_HOST, target.host)
             .putInt(RecoveryPrefs.TARGET_PORT, target.port)
             .putString(RecoveryPrefs.TARGET_TYPE, target.connectionType.name)
             .putString(RecoveryPrefs.TARGET_PROFILE, profileId)
             .apply()
+        // 门槛变化后落盘: 独立 `:a11y` 进程靠读文件拿最新门槛 (SharedPreferences 跨进程不可见)。
+        CrashRecovery.publishGate(context)
     }
 
     fun clear(context: Context) {
@@ -72,6 +88,7 @@ internal object RecoveryIntent {
             .remove(RecoveryPrefs.TARGET_TYPE)
             .remove(RecoveryPrefs.TARGET_PROFILE)
             .apply()
+        CrashRecovery.publishGate(context)
     }
 
     fun load(context: Context): RecoverySession? {

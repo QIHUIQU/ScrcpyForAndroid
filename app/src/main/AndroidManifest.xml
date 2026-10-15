@@ -97,12 +97,15 @@
             android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <!--
-          崩溃后自动拉起回远控的主机制 (用户本轮指定): 无障碍服务由系统绑定, 主进程崩溃后
-          系统会重新复生本进程并回调 onServiceConnected。仅负责自启动, 不监听输入/不读屏/不采集数据。
+          崩溃后自动拉起回远控 (用户本轮指定): 无障碍服务 + 看门狗运行在独立 `:a11y` 进程。
+          原因: 同进程服务会随主进程崩溃一起消失, 且 AOSP 把进程已死的无障碍服务标 crashed 并跳过重绑;
+          只有独立进程能在主进程死后仍持有系统绑定的无障碍(BAL 特权)并接手恢复。
+          仅负责自启动, 不监听输入/不读屏/不采集数据。
           首次必须在系统设置里手动授权, 不用 adb settings/appops 代授权。
         -->
         <service
             android:name=".services.recovery.CrashRecoveryAccessibilityService"
+            android:process=":a11y"
             android:exported="true"
             android:label="@string/app_name"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
@@ -113,6 +116,12 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+        <!-- 崩溃恢复看门狗: 会话期间被主进程绑定, 主进程死亡由 binder 死亡回调接手(事件驱动)。 -->
+        <service
+            android:name=".services.recovery.RecoveryWatchdogService"
+            android:process=":a11y"
+            android:exported="false" />
+
 
     </application>
 

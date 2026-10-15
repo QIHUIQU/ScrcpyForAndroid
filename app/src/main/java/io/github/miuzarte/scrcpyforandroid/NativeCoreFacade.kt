@@ -14,6 +14,7 @@ import io.github.miuzarte.scrcpyforandroid.services.blackout.PaymentBlackoutCoor
 import io.github.miuzarte.scrcpyforandroid.services.lockwake.ControlledLockWakeController
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveService
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.RecoveryIntent
+import io.github.miuzarte.scrcpyforandroid.services.recovery.RecoveryWatchdogService
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
@@ -309,6 +310,9 @@ object NativeCoreFacade {
         AppRuntime.currentConnectionTarget?.let { target ->
             RecoveryIntent.record(AppRuntime.context, target, AppRuntime.currentConnectionProfileId.value)
         }
+        // 崩溃恢复的真正触发源: 独立 `:a11y` 进程里的看门狗。会话期间武装, 主进程一旦崩溃由它接手
+        // (同进程的任何触发源都会随主进程一起消失)。
+        RecoveryWatchdogService.arm(AppRuntime.context)
         if (Storage.appSettings.bundleState.value.processKeepAliveEnabled) {
             runCatching { ProcessKeepAliveService.start(AppRuntime.context) }
                 .onFailure { Log.w(TAG, "keep-alive FGS start failed", it) }
@@ -382,6 +386,7 @@ object NativeCoreFacade {
         if (!isRestarting) {
             RecoveryIntent.clear(AppRuntime.context)
             runCatching { ProcessKeepAliveService.stop(AppRuntime.context) }
+            RecoveryWatchdogService.disarm(AppRuntime.context)
         }
         ControlledLockWakeController.resetEpisode("session_stopped")
         controller.releaseAll()

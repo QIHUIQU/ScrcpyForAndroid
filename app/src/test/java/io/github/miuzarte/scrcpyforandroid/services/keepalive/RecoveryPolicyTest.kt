@@ -69,4 +69,20 @@ class RecoveryPolicyTest {
         // two prior attempts still allow the third
         assertTrue("under cap", due(ApplicationExitInfo.REASON_CRASH, now - 1_000, recentAttemptCount = 2))
     }
+
+    /**
+     * 恢复前置门槛 (独立 `:a11y` 进程的触发源读共享 SharedPreferences 镜像, 不读 DataStore):
+     * 有活跃会话、未被划掉、开关开着才考虑; 任一不满足都不动。
+     */
+    @Test fun recoveryGateNeedsActiveSessionNoSwipeAndToggleOn() {
+        assertTrue(CrashRecoveryPolicy.shouldConsider(active = true, taskRemoved = false, recoveryEnabled = true))
+        // 无会话(正常停止/普通启动) ⇒ 不回远控
+        assertFalse(CrashRecoveryPolicy.shouldConsider(active = false, taskRemoved = false, recoveryEnabled = true))
+        // 用户主动划掉 ⇒ 不拉起
+        assertFalse(CrashRecoveryPolicy.shouldConsider(active = true, taskRemoved = true, recoveryEnabled = true))
+        // 开关关闭 ⇒ 不动作
+        assertFalse(CrashRecoveryPolicy.shouldConsider(active = true, taskRemoved = false, recoveryEnabled = false))
+        // 冷进程未写镜像的默认值也是 false ⇒ 保守不动作
+        assertFalse(CrashRecoveryPolicy.shouldConsider(active = false, taskRemoved = false, recoveryEnabled = false))
+    }
 }
