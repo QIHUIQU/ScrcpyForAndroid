@@ -10,8 +10,8 @@
 
 ## 2. 当前阶段与最后一次实际动作
 
-- 阶段：**v15 候选已交付**；控制端已装最终v15 cb87b57f…；旧v14复现、初稿两轮A/B、最终包正常面板复位复验分开记录。
-- 最后一次实际完成：本轮「支付后不再自动黑屏」修复 —— 源码 + 单测（先红后绿）+ 双 clean 构建 + 范围守卫 + 真机 A/B + 四件套交付 + `flow/` 留痕。验证程度：设备端 A/B 已闭环（见 §5），用户自然使用复验仍待用户。
+- 阶段：**v16 候选已交付**；控制端已装 v16 `43775698…`（install 回读 base.apk SHA256 一致）。未授权降级 + 通知退路已真机实测；“已授权自动回远控”待用户在系统设置开启无障碍后验证。
+- 最后一次实际完成：本轮「崩溃后自动拉起回远控」（AccessibilityService 主机制 + 共享 `CrashRecovery` 判据/入口 + 未授权通知降级 + 设置引导 + 成功复位计数）—— 源码 + 单测（先红后绿）+ 双 clean 构建 + 范围守卫 + 真机（未授权降级/通知退路/上限退避/成功复位）+ 四件套交付 + `flow/` 留痕。验证程度：未授权路径真机闭环，已授权自动回远控待用户授权（见 §5、§7）。
 
 ## 3. 重要决定与理由（不能重复踩的坑）
 
@@ -25,22 +25,22 @@
 
 - 仓库：`~/Documents/scrcpy-port`（origin `QIHUIQU/ScrcpyForAndroid`，本轮gh回读isPrivate=false，现为公开fork；未改可见性、不称私有备份；upstream `Miuzarte/ScrcpyForAndroid`），分支 `feat/eink-port-20261013`；基线 `357f3a9`；backup 分支 `pre-review-fixes-20261014` 与标签 `v11-candidate` = `44a03b3`（不动）。
 - 交付目录：`~/Documents/scrcpy-port-artifacts/`（候选四件套 + rollback/ + findings-20261014-roundNN/ + 各轮报告）。
-- 本轮关键文件：`app/src/main/java/io/github/miuzarte/scrcpyforandroid/services/blackout/{PaymentBlackoutStateMachine,ControlledLockReader,PaymentBlackoutCoordinator}.kt`；守卫 `scripts/verify_round15_scope.py`；报告 `flow/round15-payment-blackout.md`。
+- 本轮关键文件：`app/src/main/java/io/github/miuzarte/scrcpyforandroid/services/recovery/CrashRecoveryAccessibilityService.kt`、`services/keepalive/CrashRecovery.kt`、`services/keepalive/ProcessKeepAliveService.kt`、`pages/SettingsScreen.kt`、`pages/DeviceTabViewModel.kt`(restoreActiveSession 复位计数)、`app/src/main/AndroidManifest.xml`、`app/src/main/res/xml/accessibility_service_config.xml`、`values(-zh)/strings.xml`；守卫 `scripts/verify_round16_scope.py`；报告 `flow/round16-crash-recovery.md`。
 - 设备状态读取：`adb -s 10.0.0.237:5555 …`（控制端）/ `adb -s 10.0.0.232:7777 …`（被控端）。
 
 ## 5. 环境条件与完成判据
 
 - 构建：`export JAVA_HOME=$(/usr/libexec/java_home -v 21) ANDROID_HOME=/opt/homebrew/share/android-commandlinetools; ./gradlew :app:clean :app:assembleDebug :app:testDebugUnitTest`（`submodule/miuix` 需要 `ANDROID_HOME`）。
-- 单测/守卫：`./gradlew :app:testDebugUnitTest`；`python3 scripts/verify_round15_scope.py`；留痕自检 `python3 ~/.hermes/scripts/project_team.py docs-check --root ~/Documents/scrcpy-port`。
-- 已核实：双 clean 五 APK 逐字节一致、22 套件 120 例 0 失败、签名同旧证书、server 字节不变、守卫通过、装包回读 hash 一致。
-- 未完成/待用户：`验收清单.md` P22.1 自然使用复验；P21/P19 未测项；旧 P17/P18 回归。
+- 单测/守卫：`./gradlew :app:testDebugUnitTest`；`python3 scripts/verify_round16_scope.py`（round15 守卫为历史快照，其“改动面恰为 round15 三源两测试”断言已被本轮取代，不再作为当前门）；留痕自检 `python3 ~/.hermes/scripts/project_team.py docs-check --root ~/Documents/scrcpy-port`。
+- 已核实：双 clean 五 APK 逐字节一致、22 套件 122 例 0 失败、签名同旧证书、server 字节不变、`verify_round16_scope.py` 通过（含 P22 冻结）、装包回读 hash 一致；真机未授权降级/通知退路/上限/成功复位。
+- 未完成/待用户：`验收清单.md` P23（重点 P23.2 已授权自动回远控需用户在系统设置手动开启无障碍）；P22/P21/P19 未测项；旧 P17/P18 回归。
 - 仍需条件：**无**（设备已交回并可用；被控端解锁需用户本人 PIN/手表信任，操作员不得代输）。
 
 ## 6. 下一项具体任务与启动方法
 
-1. PAPER_7已装最终包cb87b57f…，无需重装首稿；如另需安装，候选固定路径仍为 ~/Documents/scrcpy-port-artifacts/ScrcpyForAndroid-EinkPort-candidate.apk。
-2. 按 `验收清单.md` **P22.1**（重点「本人点亮并普通使用手机后回平板仍会自动黑屏」）复验；日志关键字 `PB-1 `、`Device display turned off`。
-3. 结果带时间/步骤/hash 回对话，由执行会话接手；失败附 `dumpsys SurfaceFlinger --displays` 的 powerMode 与 PB-1 事件序列。
+1. PAPER_7 已装 v16 最终包 `43775698…`，无需重装；候选固定路径仍为 ~/Documents/scrcpy-port-artifacts/ScrcpyForAndroid-EinkPort-candidate.apk。
+2. 按 `验收清单.md` **P23**：先在设置页点「崩溃自动拉起（无障碍）」→ 系统无障碍设置手动开启，再复验「活跃会话崩溃自动回远控」；日志关键字 `CrashRecovery`、`recovery `、`crash recovery`。
+3. 结果带时间/步骤/hash 回对话，由执行会话接手；失败附 `CrashRecovery`/`ProcessKeepAlive`/`MainActivity` 片段。
 
 ## 7. 继承资料 vs 已重新检查 vs 未验证
 
