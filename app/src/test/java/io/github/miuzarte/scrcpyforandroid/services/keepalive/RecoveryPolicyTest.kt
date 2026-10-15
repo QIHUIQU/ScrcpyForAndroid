@@ -85,4 +85,21 @@ class RecoveryPolicyTest {
         // 冷进程未写镜像的默认值也是 false ⇒ 保守不动作
         assertFalse(CrashRecoveryPolicy.shouldConsider(active = false, taskRemoved = false, recoveryEnabled = false))
     }
+
+    /**
+     * 跨进程"已到达"判据 (round19): 派发进程与消费进程不同, 用普通文件而非 SharedPreferences。
+     * 内容仍是本次派发令牌 ⇒ 未到达; 换成新值(到达/清账) ⇒ 已到达, 不得再判 not observed。
+     */
+    @Test fun recoveryArrivalObservedOnlyWhenMarkerMoves() {
+        val token = 1792054933630L
+        // 主进程还没消费 ⇒ 仍是本次派发令牌 ⇒ 未到达 (该报 not observed)
+        assertTrue(RecoveryArrival.arrivalPending("P$token", token))
+        assertFalse(RecoveryArrival.arrivalPending(null, token))
+        // 主进程已消费 ⇒ 写成 A<ms> ⇒ 已到达, 绝不误报
+        assertFalse(RecoveryArrival.arrivalPending("A1792054933721", token))
+        // 会话结束清账 ⇒ A0 ⇒ 不算本次派发未到达
+        assertFalse(RecoveryArrival.arrivalPending("A0", token))
+        // 上一次派发的陈旧令牌不冒充本次 (不同 token 的文件内容不同)
+        assertFalse(RecoveryArrival.arrivalPending("P${token + 1}", token))
+    }
 }

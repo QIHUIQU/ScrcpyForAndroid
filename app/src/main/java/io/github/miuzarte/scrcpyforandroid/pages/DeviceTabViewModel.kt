@@ -811,6 +811,12 @@ internal class DeviceTabViewModel(
         if ((resolvedOptions.fullscreen || openFullscreen) &&
             resolvedOptions.video && resolvedOptions.videoPlayback
         ) {
+            // 四级日志第 4 段前置: 复用既有全屏入口向设备页发一次请求 (compat 路由 / 独立 Activity)
+            Log.i(
+                TAG,
+                "fullscreen request dispatched (openFullscreen=$openFullscreen " +
+                    "compat=${_asBundle.value.fullscreenCompatibilityMode})",
+            )
             _fullscreenRequests.trySend(Unit)
         }
         if (resolvedOptions.disableScreensaver) AppScreenOn.acquire()
@@ -938,6 +944,8 @@ internal class DeviceTabViewModel(
                 )
                 startScrcpySession(openFullscreen = true, scrcpyProfileId = session.profileId)
                 connectionController.updateQuickConnected(false)
+                // 四级日志第 3 段: 会话建立 (异步 start() 返回后)
+                Log.i(TAG, "crash recovery: session established for ${target.host}:${target.port}")
                 // 只有 start() 成功返回才算恢复成功
                 Log.i(TAG, "crash recovery: session start succeeded for ${target.host}:${target.port}")
                 // 恢复成功 = 复位本回合尝试计数: 历史额度不能挡下一次正常单次恢复

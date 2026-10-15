@@ -35,7 +35,6 @@ internal object RecoveryPrefs {
     const val TARGET_PORT = "target_port"
     const val TARGET_TYPE = "target_type"
     const val TARGET_PROFILE = "profile"
-    const val LAUNCH_PENDING = "launch_pending"
 
     /**
      * 崩溃恢复开关的镜像 (主进程在会话开始时写入)。触发源可能运行在独立 `:a11y` 进程,
@@ -82,12 +81,13 @@ internal object RecoveryIntent {
     fun clear(context: Context) {
         prefs(context).edit()
             .putBoolean(RecoveryPrefs.ACTIVE, false)
-            .putBoolean(RecoveryPrefs.LAUNCH_PENDING, false)
             .remove(RecoveryPrefs.TARGET_HOST)
             .remove(RecoveryPrefs.TARGET_PORT)
             .remove(RecoveryPrefs.TARGET_TYPE)
             .remove(RecoveryPrefs.TARGET_PROFILE)
             .apply()
+        // 到达信号走跨进程普通文件 (round19): 会话真结束就清账, 陈旧值不干扰下一次。
+        RecoveryArrival.clear(context)
         CrashRecovery.publishGate(context)
     }
 

@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
 import android.content.Intent
+import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
@@ -26,6 +27,7 @@ class CrashRecoveryAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        serviceConnected = true
         publishConnected(true)
         Log.i(TAG, "accessibility connected; evaluating crash recovery")
         CrashRecovery.tryLaunch(applicationContext, source = "accessibility")
@@ -37,11 +39,13 @@ class CrashRecoveryAccessibilityService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     override fun onUnbind(intent: Intent?): Boolean {
+        serviceConnected = false
         publishConnected(false)
         return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
+        serviceConnected = false
         publishConnected(false)
         super.onDestroy()
     }
@@ -65,12 +69,35 @@ class CrashRecoveryAccessibilityService : AccessibilityService() {
         private const val TAG = "CrashRecoveryA11y"
         private const val SERVICE_SIMPLE_NAME = "CrashRecoveryAccessibilityService"
 
-        /** 系统无障碍设置里是否已启用本服务 (启用 ≠ 已连接)。 */
+        /**
+         * 本进程 (`:a11y`) 是否连接着无障碍服务 —— 这就是"持有系统后台启动特权"的同一进程内真值。
+         * 只在本进程写入/读取, 不受跨进程缓存影响。
+         */
+        @Volatile
+        private var serviceConnected = false
+
+        /**
+         * 系统无障碍设置里是否已启用本服务 (启用 ≠ 已连接)。
+         *
+         * round19 真机实测: 重建出来的 `:a11y` 进程里 `AccessibilityManager` 的已启用服务列表可能是空的
+         * (进程内缓存尚未填充), 会让已授权的恢复被误降级为通知。故按可信度回退:
+         * 本进程连接状态 → 管理器列表 → 用户授权设置的权威副本 `ENABLED_ACCESSIBILITY_SERVICES`。
+         */
         fun isEnabled(context: Context): Boolean {
-            val manager = context.getSystemService(AccessibilityManager::class.java) ?: return false
-            return manager
-                .getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-                .any { it.id.endsWith(SERVICE_SIMPLE_NAME) }
+            if (serviceConnected) return true
+            val manager = context.getSystemService(AccessibilityManager::class.java)
+            if (manager
+                    ?.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+                    ?.any { it.id.endsWith(SERVICE_SIMPLE_NAME) } == true
+            ) {
+                return true
+            }
+            return runCatching {
+                Settings.Secure.getString(
+                    context.contentResolver,
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                )?.contains(SERVICE_SIMPLE_NAME) == true
+            }.getOrDefault(false)
         }
 
         /** 实际连接状态(设置页展示用)；由 `:a11y` 进程发布, 主进程读回, 不作为恢复判据。 */

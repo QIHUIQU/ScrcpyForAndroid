@@ -23,6 +23,7 @@ import io.github.miuzarte.scrcpyforandroid.services.AppScreenOn
 import io.github.miuzarte.scrcpyforandroid.services.UnlockJumpController
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveScheduler
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveService
+import io.github.miuzarte.scrcpyforandroid.services.keepalive.RecoveryArrival
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.RecoveryIntentPolicy
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.RecoveryPrefs
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
@@ -75,8 +76,8 @@ class MainActivity: LocalizedActivity() {
     private fun handleRecoveryIntent(recoveryIntent: Intent?) {
         if (recoveryIntent?.getBooleanExtra(ProcessKeepAliveService.EXTRA_RECOVER_SESSION, false) != true) return
         recoveryIntent.removeExtra(ProcessKeepAliveService.EXTRA_RECOVER_SESSION)
-        getSharedPreferences(RecoveryPrefs.FILE, MODE_PRIVATE).edit()
-            .putBoolean(RecoveryPrefs.LAUNCH_PENDING, false).apply()
+        // 到达信号写跨进程文件, `:a11y` 看门狗读盘即可见 (SharedPreferences 不跨进程, 原会误报未到达)。
+        RecoveryArrival.markArrived(this)
         RecoveryIntentPolicy.arm()
         Log.i("MainActivity", "recovery launch arrived; restore intent armed")
     }

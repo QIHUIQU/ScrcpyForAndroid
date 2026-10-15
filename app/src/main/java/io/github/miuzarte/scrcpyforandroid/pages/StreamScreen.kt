@@ -1,6 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
 import android.content.pm.ActivityInfo
+import android.util.Log
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.*
 import androidx.lifecycle.Lifecycle
@@ -86,6 +87,11 @@ fun FullscreenControlRoute(
         if (currentSession == null && !restartInProgress) {
             onBack()
         }
+    }
+
+    // 四级日志第 4 段: 全屏远控页(compat 路由)已合成并显示
+    LaunchedEffect(Unit) {
+        Log.i("FullscreenControlRoute", "fullscreen control page composed (compat route visible)")
     }
 
     DisposableEffect(activity) {

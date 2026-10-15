@@ -1,6 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
 import android.os.SystemClock
+import android.util.Log
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -269,10 +270,14 @@ internal fun DeviceTabPage(
     LaunchedEffect(Unit) { viewModel.startConnectionHealthCheckLoop() }
 
     fun openFullscreenControl() {
-        if (viewModel.shouldOpenFullscreenCompat())
+        // 四级日志第 4 段: 全屏远控页前台/可见的入口 (compat=Compose 路由 / 否则独立 StreamActivity)
+        if (viewModel.shouldOpenFullscreenCompat()) {
+            Log.i("DeviceTabScreen", "fullscreen route requested (compat=true)")
             onOpenFullscreenCompat()
-        else
+        } else {
+            Log.i("DeviceTabScreen", "fullscreen route requested (compat=false)")
             viewModel.openStreamActivity(context)
+        }
     }
 
     DisposableEffect(Unit) {

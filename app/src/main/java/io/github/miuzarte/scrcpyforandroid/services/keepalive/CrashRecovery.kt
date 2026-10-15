@@ -125,6 +125,41 @@ internal data class RecoveryGate(
 }
 
 /**
+ * 跨进程"已到达"信号（round19 真机缺陷修复）。
+ *
+ * 原实现把 `LAUNCH_PENDING` 写在 SharedPreferences 里：派发发生在 `:a11y` 进程、到达消费在**主进程**，
+ * 而 SharedPreferences 不支持跨进程（每个进程各持一份内存缓存）。真机实测（2026-10-15 16:08 PDT）：
+ * 主进程 16:08:54 已 `recovery launch arrived`，但 `:a11y` 仍在 16:08:55 读到旧的 pending ⇒
+ * 误判 `arrival not observed` 并多发一条降级通知。改为普通文件（与 [RecoveryGate] 同一跨进程原理）：
+ * 任意进程每次读盘都是最新值。纯文本格式 `P<dispatchToken>`=已派发未到达，`A<ms>`=已到达。
+ */
+internal object RecoveryArrival {
+    private const val TAG = "CrashRecovery"
+    private const val FILE = "recovery_arrival"
+
+    /** `:a11y` 派发拉起前登记本次令牌。 */
+    fun markPending(context: Context, token: Long) =
+        runCatching { File(context.filesDir, FILE).writeText("P$token") }
+            .onFailure { Log.w(TAG, "arrival mark pending failed", it) }
+
+    /** 主进程 MainActivity 真正消费恢复意图时登记到达（`:a11y` 读盘即可见）。 */
+    fun markArrived(context: Context) =
+        runCatching { File(context.filesDir, FILE).writeText("A${System.currentTimeMillis()}") }
+            .onFailure { Log.w(TAG, "arrival mark arrived failed", it) }
+
+    /** 会话真正结束/用户划掉时清账，避免陈旧值干扰下一次。 */
+    fun clear(context: Context) =
+        runCatching { File(context.filesDir, FILE).writeText("A0") }
+            .onFailure { Log.w(TAG, "arrival clear failed", it) }
+
+    fun isPending(context: Context, token: Long): Boolean =
+        arrivalPending(runCatching { File(context.filesDir, FILE).readText() }.getOrNull(), token)
+
+    /** 纯判据（JVM-testable）：文件内容仍是本次派发令牌 ⇒ 尚未观察到到达。 */
+    fun arrivalPending(content: String?, token: Long): Boolean = content == "P$token"
+}
+
+/**
  * 某个触发进程自己的"同一死亡去重 + 10 分钟最多三次"状态。
  *
  * 主进用共享 prefs; `:a11y` 看门狗用本进程内存, 两者都用 [RecoveryGate] 里的 `handledExitMs` 做
@@ -282,9 +317,10 @@ internal object CrashRecovery {
     }
 
     private fun dispatchAutoRelaunch(context: Context, source: String): Boolean {
-        // 只有真的要拉起才置 launch_pending: 3 秒内未被 MainActivity 消费判定"未观察到到达"。
-        val prefs = context.getSharedPreferences(RecoveryPrefs.FILE, Context.MODE_PRIVATE)
-        prefs.edit().putBoolean(RecoveryPrefs.LAUNCH_PENDING, true).apply()
+        // 只有真的要拉起才登记 token: 3 秒内未被 MainActivity 消费判定"未观察到到达"。
+        // 用跨进程普通文件而非 SharedPreferences (后者 `:a11y` 与主进程各持缓存, 真机实测会误报)。
+        val token = System.currentTimeMillis()
+        RecoveryArrival.markPending(context, token)
         val dispatched = runCatching {
             context.startActivity(recoveryActivityIntent(context))
         }.onFailure {
@@ -296,7 +332,7 @@ internal object CrashRecovery {
         }
         Log.i(TAG, "recovery launch dispatched (source=$source); awaiting MainActivity arrival")
         Handler(context.mainLooper).postDelayed({
-            if (prefs.getBoolean(RecoveryPrefs.LAUNCH_PENDING, false)) {
+            if (RecoveryArrival.isPending(context, token)) {
                 // 仅说明"未观察到到达", 不擅断就是 BAL; 给可点通知兜底。
                 Log.w(TAG, "recovery MainActivity arrival not observed; posting notification fallback")
                 postFallbackNotification(context)

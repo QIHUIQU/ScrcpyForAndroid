@@ -3,6 +3,7 @@ package io.github.miuzarte.scrcpyforandroid
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.compose.setContent
 import androidx.lifecycle.Lifecycle
 import io.github.miuzarte.scrcpyforandroid.i18n.LocalizedActivity
@@ -20,6 +21,12 @@ class StreamActivity: LocalizedActivity() {
         setContent {
             StreamScreen(activity = this)
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 四级日志第 4 段: 全屏远控页(独立 StreamActivity)已前台可见
+        Log.i("StreamActivity", "fullscreen control page visible (stream activity)")
     }
 
     override fun onDestroy() {
