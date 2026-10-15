@@ -24,8 +24,6 @@ class TouchEventHandler(
     private val session: Scrcpy.Session.SessionInfo,
     private val touchAreaSize: IntSize,
     private val stretchFill: Boolean = false,
-    /** 双指平移开关：仅全屏控制页启用；设备卡预览禁用(共享全局 pan 状态会把全屏画面顶偏) (Q2) */
-    private val panEnabled: Boolean = false,
     private val activePointerIds: LinkedHashSet<Int>,
     private val activePointerPositions: LinkedHashMap<Int, Offset>,
     private val activePointerDevicePositions: LinkedHashMap<Int, Pair<Int, Int>>,
@@ -77,7 +75,6 @@ class TouchEventHandler(
     private fun handlePanGesture(event: MotionEvent): Boolean {
         val scale = io.github.miuzarte.scrcpyforandroid.NativeCoreFacade.videoScale()
         if (scale <= 1f || isMouseLikeEvent(event)) return false
-        if (!panEnabled) return false
         if (event.pointerCount >= 2) {
             if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
                 // 双指动作被系统取消(≥2 指 CANCEL)不是「平移开始」: 作废已转发的指针并复位平移态。
