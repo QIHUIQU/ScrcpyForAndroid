@@ -76,6 +76,14 @@ class TouchEventHandler(
         val scale = io.github.miuzarte.scrcpyforandroid.NativeCoreFacade.videoScale()
         if (scale <= 1f || isMouseLikeEvent(event)) return false
         if (event.pointerCount >= 2) {
+            if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                // Re-restore P1-5: 2026-10-14 reference audit confirmed this is a stuck-pan bug,
+                // not panel-dismiss design. CANCEL must finish a pan, never start/latch one.
+                handleCancelAction(calculateContentBounds(), UiMotionActions.CANCEL)
+                panning = false
+                previousCentroid = null
+                return true
+            }
             if (!panning) {
                 // 平移开始：立即取消已转发的触摸。必须用 ACTION_CANCEL —— 用 UP 的话，
                 // 被控端会把「第一根手指的 DOWN+UP」识别为一次点击/滑动（误触根因）；
