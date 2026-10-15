@@ -14,14 +14,8 @@ object ProcessKeepAliveRules {
     /** JobScheduler job id (single source). */
     const val JOB_ID = 0xEC02
 
-    /** Platform lower bound for periodic jobs (15 min). */
-    const val MIN_PERIODIC_INTERVAL_MS = 15L * 60L * 1000L
-
-    /** Periodic interval: exactly the platform lower bound. */
-    const val PERIODIC_INTERVAL_MS = MIN_PERIODIC_INTERVAL_MS
-
-    /** Schedule the periodic job when the feature is enabled. */
-    fun shouldSchedule(enabled: Boolean): Boolean = enabled
+    /** Periodic interval: the platform lower bound for periodic jobs (15 min). */
+    const val PERIODIC_INTERVAL_MS = 15L * 60L * 1000L
 
     /**
      * Run the foreground service while enabled and either a session is started or a crash
