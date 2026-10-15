@@ -96,6 +96,24 @@
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
 
+        <!--
+          崩溃后自动拉起回远控的主机制 (用户本轮指定): 无障碍服务由系统绑定, 主进程崩溃后
+          系统会重新复生本进程并回调 onServiceConnected。仅负责自启动, 不监听输入/不读屏/不采集数据。
+          首次必须在系统设置里手动授权, 不用 adb settings/appops 代授权。
+        -->
+        <service
+            android:name=".services.recovery.CrashRecoveryAccessibilityService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
     </application>
 
 </manifest>

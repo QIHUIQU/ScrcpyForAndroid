@@ -940,6 +940,9 @@ internal class DeviceTabViewModel(
                 connectionController.updateQuickConnected(false)
                 // 只有 start() 成功返回才算恢复成功
                 Log.i(TAG, "crash recovery: session start succeeded for ${target.host}:${target.port}")
+                // 恢复成功 = 复位本回合尝试计数: 历史额度不能挡下一次正常单次恢复
+                AppRuntime.context.getSharedPreferences(RecoveryPrefs.FILE, Context.MODE_PRIVATE)
+                    .edit().remove(RecoveryPrefs.ATTEMPTS).apply()
             } catch (cancel: CancellationException) {
                 throw cancel
             } catch (error: Exception) {

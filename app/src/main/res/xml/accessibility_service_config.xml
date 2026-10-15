@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Only auto-relaunch support. No accessibility event types, no feedback type and no flags are
+  requested; window content is explicitly not retrievable. The service never observes input,
+  screen content or any data.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/accessibility_service_description"
+    android:canRetrieveWindowContent="false" />

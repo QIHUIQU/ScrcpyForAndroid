@@ -227,7 +227,7 @@
     <string name="pref_title_video_scale_locked">锁定画面倍率</string>
     <string name="pref_summary_video_scale_locked">锁定后不能调节或复位倍率，双指平移仍可用</string>
     <string name="pref_title_crash_recovery">崩溃或无响应后尝试恢复</string>
-    <string name="pref_summary_crash_recovery">保活服务运行时异常退出，十分钟最多尝试三次重新打开；系统可能禁止后台拉界面，可点保活通知继续。主动划掉不恢复。</string>
+    <string name="pref_summary_crash_recovery">保活服务运行时异常退出，十分钟最多尝试三次重新打开；无障碍已授权时自动回远控（主机制），未授权时系统可能禁止后台拉界面，可点通知回到远控。主动划掉不恢复。</string>
     <string name="pref_title_controlled_lock_auto_password">自动提交已保存的设备密码</string>
     <string name="pref_summary_controlled_lock_auto_password">默认开启，可关闭。仅对密码库中名称与当前设备序列号完全相同、创建时未启用认证的条目生效；自动填入时不弹出生物认证，请确认设备是自己的。</string>
     <string name="controlled_lock_manual_input_needed">被控端已唤醒，请手动输入密码（自动解锁：在密码库新建一个名称为 %1$s 的未认证条目）</string>
@@ -255,6 +255,14 @@
     <string name="keepalive_channel_name">保活</string>
     <string name="keepalive_notification_title">远控会话进行中</string>
     <string name="keepalive_notification_text">保持应用存活，避免远控会话被系统回收</string>
+    <string name="accessibility_service_description">仅在应用崩溃后重新拉起本应用以恢复远控会话。不监听键盘输入、不读取屏幕内容、不采集任何数据。</string>
+    <string name="pref_title_crash_recovery_accessibility">崩溃自动拉起（无障碍）</string>
+    <string name="pref_summary_crash_recovery_accessibility_on">已启用且已连接。崩溃后自动重新拉起应用恢复远控会话。本服务只负责自启动——不监听输入、不读取屏幕、不采集任何数据。需在系统设置中手动开启，应用自身无法代为开启。</string>
+    <string name="pref_summary_crash_recovery_accessibility_enabled_disconnected">已在系统设置中启用，但尚未连接；系统会自动重新连接。</string>
+    <string name="pref_summary_crash_recovery_accessibility_off">未启用。点此进入系统无障碍设置开启，崩溃后才能自动拉起回远控。本服务只负责自启动——不监听输入、不读取屏幕、不采集数据。开启是每台设备手动操作。</string>
+    <string name="pref_crash_recovery_notification_denied">本应用的通知权限已关闭，「点通知回到远控」的降级通知可能不可见。请开启通知权限以保留该降级入口。</string>
+    <string name="recovery_notification_title">远控会话已中断</string>
+    <string name="recovery_notification_text">点通知回到远控</string>
     <string name="pref_title_hide_simple_settings">设备页隐藏简单设置项</string>
     <string name="pref_summary_hide_simple_settings">启用后设备页仅保留更多参数、所有应用、最近任务和启动/停止按钮</string>
     <string name="pref_title_preview_card_on_top">使预览卡显示在配置卡上方</string>

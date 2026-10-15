@@ -1,13 +1,9 @@
 package io.github.miuzarte.scrcpyforandroid.services.keepalive
 
 import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.app.ActivityManager
-import android.app.ApplicationExitInfo
-import android.os.Build
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
@@ -132,6 +128,9 @@ internal object RecoveryIntentPolicy {
  * Minimal foreground service that keeps the process alive while a scrcpy session is
  * active (port of EasyControl's keep-alive FGS, simplified: no M01 gating, no circuit
  * breakers). Started/stopped from the session lifecycle (see NativeCoreFacade).
+ *
+ * Its START_STICKY restart is now only a backstop trigger: the decision + relaunch live in
+ * [CrashRecovery] (shared with the accessibility service, the primary trigger).
  */
 class ProcessKeepAliveService : Service() {
 
@@ -140,7 +139,7 @@ class ProcessKeepAliveService : Service() {
     override fun onCreate() {
         super.onCreate()
         AppRuntime.init(applicationContext)
-        createChannel()
+        getSystemService(NotificationManager::class.java)?.let { CrashRecovery.ensureChannel(this, it) }
         runCatching { startForeground(NOTIFICATION_ID, buildNotification()) }
             .onFailure { Log.w(TAG, "startForeground failed", it) }
         running = true
@@ -156,63 +155,15 @@ class ProcessKeepAliveService : Service() {
             .onFailure { Log.w(TAG, "recovery settings unavailable; skip", it); return START_STICKY }
         if (AppRuntime.scrcpy?.isStarted() == true) {
             prefs.edit().putBoolean(RecoveryPrefs.ACTIVE, true).apply()
-        } else if (prefs.getBoolean(RecoveryPrefs.ACTIVE, false) &&
-            !prefs.getBoolean(RecoveryPrefs.TASK_REMOVED, false) &&
-            Storage.appSettings.bundleState.value.crashRecoveryEnabled
-        ) {
-            tryRecover(prefs)
+        } else {
+            CrashRecovery.tryLaunch(this, source = "keepalive_service")
         }
         return START_STICKY
     }
 
-    private fun tryRecover(prefs: android.content.SharedPreferences) {
-        if (Build.VERSION.SDK_INT < 30) return
-        val exit = (getSystemService(ACTIVITY_SERVICE) as ActivityManager)
-            .getHistoricalProcessExitReasons(packageName, 0, 1).firstOrNull() ?: return
-        val reason = exit.reason
-        val now = System.currentTimeMillis()
-        if (reason != ApplicationExitInfo.REASON_CRASH &&
-            reason != ApplicationExitInfo.REASON_CRASH_NATIVE &&
-            reason != ApplicationExitInfo.REASON_ANR &&
-            reason != ApplicationExitInfo.REASON_LOW_MEMORY) return
-        if (exit.timestamp <= prefs.getLong(RecoveryPrefs.HANDLED_EXIT, 0L) ||
-            now - exit.timestamp !in 0L..600_000L
-        ) return
-        val recent = RecoveryPolicy.recentAttempts(now, prefs.getString(RecoveryPrefs.ATTEMPTS, "").orEmpty())
-        if (recent.size >= 3) {
-            Log.w(TAG, "recovery suppressed: 3 attempts in 10 minutes")
-            return
-        }
-        prefs.edit().putLong(RecoveryPrefs.HANDLED_EXIT, exit.timestamp)
-            .putString(RecoveryPrefs.ATTEMPTS, (recent + now).joinToString(","))
-            .putBoolean(RecoveryPrefs.LAUNCH_PENDING, true).apply()
-        Log.i(TAG, "recovery attempt: reason=$reason (${recent.size + 1}/3); app may be blocked by BAL policy")
-        // Fullscreen recovery intent is handed over as an extra; a returned startActivity is
-        // NOT proof of arrival (BAL can silently block), so log dispatch and arrival separately.
-        runCatching {
-            startActivity(
-                Intent(this, MainActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                    .putExtra(EXTRA_RECOVER_SESSION, true),
-            )
-        }.onSuccess {
-            Log.i(TAG, "recovery launch dispatched; awaiting MainActivity arrival")
-        }.onFailure { Log.w(TAG, "recovery launch failed; tap foreground notification", it) }
-        // BAL may silently reject startActivity. Check arrival once, never report dispatch as success.
-        android.os.Handler(mainLooper).postDelayed({
-            if (prefs.getBoolean(RecoveryPrefs.LAUNCH_PENDING, false)) {
-                Log.w(TAG, "recovery MainActivity arrival not observed (possibly BAL); tap foreground notification")
-            }
-        }, 3_000L)
-        // The existing foreground notification remains a user-driven recovery path.
-    }
-
     override fun onTaskRemoved(rootIntent: Intent?) {
         // 用户主动划掉: 清除活跃会话目标并禁用自动拉起
-        RecoveryIntent.clear(this)
-        getSharedPreferences(RecoveryPrefs.FILE, MODE_PRIVATE).edit()
-            .putBoolean(RecoveryPrefs.TASK_REMOVED, true).putBoolean(RecoveryPrefs.ACTIVE, false).apply()
-        Log.i(TAG, "task removed by user: recovery disabled until next manual launch")
+        CrashRecovery.onUserSwipedAway(this)
         stopSelf()
         super.onTaskRemoved(rootIntent)
     }
@@ -220,19 +171,6 @@ class ProcessKeepAliveService : Service() {
     override fun onDestroy() {
         running = false
         super.onDestroy()
-    }
-
-    private fun createChannel() {
-        val manager = getSystemService(NotificationManager::class.java) ?: return
-        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-            manager.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_ID,
-                    getString(R.string.keepalive_channel_name),
-                    NotificationManager.IMPORTANCE_LOW,
-                ),
-            )
-        }
     }
 
     private fun buildNotification(): Notification {

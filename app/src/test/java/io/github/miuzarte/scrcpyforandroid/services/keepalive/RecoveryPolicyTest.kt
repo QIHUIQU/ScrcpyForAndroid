@@ -1,5 +1,6 @@
 package io.github.miuzarte.scrcpyforandroid.services.keepalive
 
+import android.app.ApplicationExitInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -24,5 +25,48 @@ class RecoveryPolicyTest {
                 enabled = false, sessionActive = false, recoveryPending = true,
             ),
         )
+    }
+
+    private fun due(
+        reason: Int,
+        exitTimestampMs: Long,
+        lastHandledExitMs: Long = 0L,
+        nowMs: Long = 10_000_000L,
+        recentAttemptCount: Int = 0,
+    ) = CrashRecoveryPolicy.shouldAttempt(
+        reason = reason,
+        exitTimestampMs = exitTimestampMs,
+        lastHandledExitMs = lastHandledExitMs,
+        nowMs = nowMs,
+        recentAttemptCount = recentAttemptCount,
+    )
+
+    @Test fun onlyFreshUnhandledAbnormalExitsRelaunch() {
+        val now = 10_000_000L
+        // every abnormal exit kind within the window => relaunch
+        assertTrue("crash", due(ApplicationExitInfo.REASON_CRASH, now - 1_000))
+        assertTrue("native crash", due(ApplicationExitInfo.REASON_CRASH_NATIVE, now - 1_000))
+        assertTrue("anr", due(ApplicationExitInfo.REASON_ANR, now - 1_000))
+        assertTrue("low memory", due(ApplicationExitInfo.REASON_LOW_MEMORY, now - 1_000))
+        // normal/user exits never relaunch
+        assertFalse("user requested", due(ApplicationExitInfo.REASON_USER_REQUESTED, now - 1_000))
+        assertFalse("exit self", due(ApplicationExitInfo.REASON_EXIT_SELF, now - 1_000))
+    }
+
+    @Test fun staleHandledFutureAndCappedExitsAreDeclined() {
+        val now = 10_000_000L
+        // same death already handled => no repeat
+        assertFalse("handled", due(ApplicationExitInfo.REASON_CRASH, now - 5_000, lastHandledExitMs = now - 1_000))
+        // older than the 10-minute window => no
+        assertFalse(
+            "expired",
+            due(ApplicationExitInfo.REASON_CRASH, now - CrashRecoveryPolicy.RECENT_WINDOW_MS - 1),
+        )
+        // future timestamp (clock skew) => no
+        assertFalse("future", due(ApplicationExitInfo.REASON_CRASH, now + 1))
+        // 3 attempts in 10 minutes => suppressed
+        assertFalse("capped", due(ApplicationExitInfo.REASON_CRASH, now - 1_000, recentAttemptCount = 3))
+        // two prior attempts still allow the third
+        assertTrue("under cap", due(ApplicationExitInfo.REASON_CRASH, now - 1_000, recentAttemptCount = 2))
     }
 }

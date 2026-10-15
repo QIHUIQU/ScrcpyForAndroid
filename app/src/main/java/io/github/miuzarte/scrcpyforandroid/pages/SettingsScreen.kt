@@ -25,7 +25,11 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.miuzarte.scrcpyforandroid.BuildConfig
 import io.github.miuzarte.scrcpyforandroid.LockscreenPasswordActivity
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
@@ -34,6 +38,7 @@ import io.github.miuzarte.scrcpyforandroid.scrcpy.GammaSettings
 import io.github.miuzarte.scrcpyforandroid.services.blackout.PaymentBlackoutConfig
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveScheduler
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveService
+import io.github.miuzarte.scrcpyforandroid.services.recovery.CrashRecoveryAccessibilityService
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.i18n.AppLocale
 import io.github.miuzarte.scrcpyforandroid.nativecore.DirectAdbTransport
@@ -1036,6 +1041,52 @@ fun SettingsPage(
                     summary = stringResource(R.string.pref_summary_crash_recovery),
                     checked = asBundle.crashRecoveryEnabled,
                     onCheckedChange = { asBundle = asBundle.copy(crashRecoveryEnabled = it) },
+                )
+                // 崩溃后自动拉起的主机制: 无障碍。系统检测启用/已连接状态, 一键跳系统无障碍设置。
+                // 首次必须用户手动授权 (不用 adb settings/appops 代授权)。
+                val lifecycleOwner = LocalLifecycleOwner.current
+                var accessibilityEnabled by remember {
+                    mutableStateOf(CrashRecoveryAccessibilityService.isEnabled(context))
+                }
+                var accessibilityConnected by remember {
+                    mutableStateOf(CrashRecoveryAccessibilityService.connected)
+                }
+                DisposableEffect(lifecycleOwner) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_RESUME) {
+                            accessibilityEnabled = CrashRecoveryAccessibilityService.isEnabled(context)
+                            accessibilityConnected = CrashRecoveryAccessibilityService.connected
+                        }
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+                }
+                val notificationsVisible = NotificationManagerCompat.from(context).areNotificationsEnabled()
+                ArrowPreference(
+                    title = stringResource(R.string.pref_title_crash_recovery_accessibility),
+                    summary = buildString {
+                        append(
+                            stringResource(
+                                when {
+                                    !accessibilityEnabled ->
+                                        R.string.pref_summary_crash_recovery_accessibility_off
+                                    !accessibilityConnected ->
+                                        R.string.pref_summary_crash_recovery_accessibility_enabled_disconnected
+                                    else -> R.string.pref_summary_crash_recovery_accessibility_on
+                                },
+                            ),
+                        )
+                        if (!notificationsVisible) {
+                            append('\n')
+                            append(stringResource(R.string.pref_crash_recovery_notification_denied))
+                        }
+                    },
+                    onClick = {
+                        haptic.contextClick()
+                        runCatching {
+                            context.startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
+                        }.onFailure { AppRuntime.snackbar(R.string.pref_cannot_open_settings) }
+                    },
                 )
                 Column(
                     modifier = Modifier.padding(vertical = UiSpacing.Large),

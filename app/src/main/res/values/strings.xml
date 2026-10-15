@@ -256,6 +256,14 @@
     <string name="keepalive_channel_name">Keep-alive</string>
     <string name="keepalive_notification_title">Remote session active</string>
     <string name="keepalive_notification_text">Keeping the app alive so the remote-control session is not killed in background</string>
+    <string name="accessibility_service_description">Only reopens this app to resume a remote-control session after it crashes. It does not capture keyboard input, read screen content, or collect any data.</string>
+    <string name="pref_title_crash_recovery_accessibility">Auto-relaunch (accessibility)</string>
+    <string name="pref_summary_crash_recovery_accessibility_on">Enabled and connected. After a crash the app reopens automatically to resume the remote-control session. This only handles auto-relaunch — it never captures keyboard input, reads screen content, or collects any data. Enable it manually in system settings; it cannot be turned on by the app itself.</string>
+    <string name="pref_summary_crash_recovery_accessibility_enabled_disconnected">Enabled in system settings but not connected yet; the system reconnects it automatically.</string>
+    <string name="pref_summary_crash_recovery_accessibility_off">Not enabled. Tap to enable it in system accessibility settings so a crash can reopen the app automatically. It only handles auto-relaunch — no input capture, no screen reading, no data collection. Enabling is a manual, per-device action.</string>
+    <string name="pref_crash_recovery_notification_denied">Notifications are disabled for this app, so the \"tap to return to remote control\" fallback notification may not be visible. Enable notifications (or allow them in system settings) to keep that fallback.</string>
+    <string name="recovery_notification_title">Remote session interrupted</string>
+    <string name="recovery_notification_text">Tap to return to remote control</string>
     <string name="pref_title_hide_simple_settings">Hide simple settings on device page</string>
     <string name="pref_summary_hide_simple_settings">When enabled, the device page only keeps More parameters, All apps, Recent tasks, and Start/Stop buttons</string>
     <string name="pref_title_preview_card_on_top">Show preview card above config</string>
