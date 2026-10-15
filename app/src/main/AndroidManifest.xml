@@ -95,13 +95,6 @@
             android:name=".services.keepalive.KeepAliveJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
-        <receiver
-            android:name=".services.keepalive.BootRescheduleReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
 
     </application>
 
