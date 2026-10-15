@@ -58,9 +58,8 @@ class ProcessKeepAliveService : Service() {
         runCatching { startForeground(NOTIFICATION_ID, buildNotification()) }
         running = true
         val prefs = getSharedPreferences(RecoveryPrefs.FILE, MODE_PRIVATE)
-        // On a cold START_STICKY resurrection the settings StateFlow still has defaults.
-        runCatching { kotlinx.coroutines.runBlocking { Storage.appSettings.loadBundle() } }
-            .onFailure { Log.w(TAG, "recovery settings unavailable; skip", it); return START_STICKY }
+        // AppRuntime.init 已在 onCreate 执行; bundleState 的 initialValue 已同步读盘,
+        // 这里再 loadBundle() 是重复的主线程读盘 (已删除)。
         if (AppRuntime.scrcpy?.isStarted() == true) {
             prefs.edit().putBoolean(RecoveryPrefs.ACTIVE, true).apply()
         } else if (prefs.getBoolean(RecoveryPrefs.ACTIVE, false) &&

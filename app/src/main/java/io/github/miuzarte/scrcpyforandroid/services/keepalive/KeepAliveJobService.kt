@@ -20,10 +20,10 @@ import io.github.miuzarte.scrcpyforandroid.storage.Storage
  */
 class KeepAliveJobService : JobService() {
     override fun onStartJob(params: JobParameters?): Boolean {
+        // 冷进程拉起: 必须先初始化运行时, 否则 Storage.appSettings (lazy 读 AppRuntime.context)
+        // 会在第二次访问时抛 UninitializedPropertyAccessException 崩掉进程 (与本服务同款修法)。
+        // bundleState 的 initialValue 已同步读盘, 无需再显式 loadBundle()。
         AppRuntime.init(applicationContext)
-        // Cold process resurrection: the settings StateFlow still holds defaults until loaded.
-        runCatching { kotlinx.coroutines.runBlocking { Storage.appSettings.loadBundle() } }
-            .onFailure { Log.w(TAG, "job: settings unavailable", it) }
         val enabled = Storage.appSettings.bundleState.value.processKeepAliveEnabled
         val sessionActive = AppRuntime.scrcpy?.isStarted() == true
         val prefs = getSharedPreferences(RecoveryPrefs.FILE, MODE_PRIVATE)
