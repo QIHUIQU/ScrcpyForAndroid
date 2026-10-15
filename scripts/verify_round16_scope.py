@@ -27,6 +27,7 @@ READER = JAVA + "services/blackout/ControlledLockReader.kt"
 COORD = JAVA + "services/blackout/PaymentBlackoutCoordinator.kt"
 
 A11Y = JAVA + "services/recovery/CrashRecoveryAccessibilityService.kt"
+WATCHDOG = JAVA + "services/recovery/RecoveryWatchdogService.kt"
 CRASH = JAVA + "services/keepalive/CrashRecovery.kt"
 KEEPALIVE = JAVA + "services/keepalive/ProcessKeepAliveService.kt"
 SETTINGS = JAVA + "pages/SettingsScreen.kt"
@@ -45,7 +46,9 @@ EXPECTED_MAIN_CHANGES = {
     KEEPALIVE,
     CRASH,
     A11Y,
+    WATCHDOG,
     JAVA + "pages/DeviceTabViewModel.kt",
+    JAVA + "NativeCoreFacade.kt",
 }
 EXPECTED_TEST_CHANGES = {
     TEST + "services/keepalive/RecoveryPolicyTest.kt",
@@ -123,7 +126,12 @@ def check_accessibility_service():
     # enabled-state detection for the settings page ("enabled" != "connected")
     assert "fun isEnabled(context: Context): Boolean" in svc
     assert "getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)" in svc
-    assert "var connected: Boolean" in svc
+    # the connection state is published onto the shared prefs by the :a11y process and read back
+    assert "fun isConnected(context: Context): Boolean" in svc
+    assert "RecoveryPrefs.A11Y_CONNECTED" in svc
+    # cross-process rule: the :a11y process must never touch the DataStore
+    for banned in ("Storage.", "loadBundle", "appSettings"):
+        assert banned not in svc, banned
     # privacy: no event listening / screen reading / data collection declared or used
     for banned in ("getRootInActiveWindow", "getWindows(", "takeScreenshot", "canRetrieveWindowContent"):
         assert banned not in svc, banned
@@ -141,7 +149,45 @@ def check_accessibility_xml_and_manifest():
     assert "android.accessibilityservice.AccessibilityService" in manifest
     assert "@xml/accessibility_service_config" in manifest
     assert ".services.recovery.CrashRecoveryAccessibilityService" in manifest
-    print("PASS: manifest declares BIND_ACCESSIBILITY_SERVICE + config; XML requests no events/content")
+    # the a11y service AND its watchdog live in the dedicated :a11y process (survive the main crash)
+    a11y_block = manifest[manifest.index(".services.recovery.CrashRecoveryAccessibilityService"):]
+    a11y_block = a11y_block[:a11y_block.index("</service>")]
+    assert 'android:process=":a11y"' in a11y_block
+    assert ".services.recovery.RecoveryWatchdogService" in manifest
+    assert manifest.count('android:process=":a11y"') == 2
+    print("PASS: manifest declares BIND_ACCESSIBILITY_SERVICE + config; a11y + watchdog in :a11y")
+
+
+def check_dedicated_process_watchdog():
+    """The only trigger that survives a crash: a watchdog in :a11y, woken by the service lifecycle."""
+    dog = now(WATCHDOG)
+    assert "class RecoveryWatchdogService : Service()" in dog
+    # event-driven death signal: AMS unbinds/destroys the watchdog when its client process dies;
+    # NO timers, NO polling, NO binder-death token (device test: linkToDeath was silently unlinked
+    # and did not fire, while the lifecycle signal did).
+    assert 'recover("onUnbind")' in dog and 'recover("onDestroy")' in dog
+    for banned in ("linkToDeath", "putBinder", "deathRecipient"):
+        assert banned not in dog, banned
+    for banned in ("Timer", "schedule(", "addOnUncaughtException", "Thread.sleep", "JobScheduler", "while (true"):
+        assert banned not in dog, banned
+    assert "fun arm(context: Context)" in dog and "fun disarm(context: Context)" in dog
+    assert "BIND_AUTO_CREATE" in dog
+    # the watchdog process being reaped must not silently cost the session its trigger
+    assert "onServiceDisconnected" in dog and "private fun reArm()" in dog
+    # cross-process state (device-found): SharedPreferences is NOT shared between processes, so the
+    # gate must be re-read from a plain file and the dedup/cap must stay in-process.
+    assert "RecoveryGate.read(applicationContext)" in dog
+    assert "WatchdogRecoveryState" in dog and "state.reset()" in dog
+    assert "EXTRA_SESSION_STARTED" in dog
+    # it hands off to the exact same single shared path / entry
+    assert "CrashRecovery.tryLaunchInWatchdog(applicationContext, source = \"watchdog\"" in dog
+    # armed only for the session lifetime, from the session lifecycle
+    facade = now(JAVA + "NativeCoreFacade.kt")
+    started = functions(facade, "onScrcpySessionStarted")[0]
+    assert "RecoveryWatchdogService.arm(AppRuntime.context)" in started
+    stopped = functions(facade, "onScrcpySessionStopped")[0]
+    assert "RecoveryWatchdogService.disarm(AppRuntime.context)" in stopped
+    print("PASS: dedicated :a11y watchdog is the crash-surviving trigger (lifecycle signal, no polling)")
 
 
 def check_shared_recovery_path():
@@ -156,6 +202,14 @@ def check_shared_recovery_path():
     assert "CrashRecoveryPolicy.shouldAttempt(" in crash
     # unauthorized path must degrade to a tappable notification, never claim auto-relaunch
     assert "CrashRecoveryAccessibilityService.isEnabled(context)" in crash
+    # the :a11y trigger reads the cross-process gate from shared prefs, never the DataStore
+    assert "CrashRecoveryPolicy.shouldConsider(" in crash
+    assert "RecoveryPrefs.ENABLED_MIRROR" in crash
+    assert "Storage." not in crash and "appSettings" not in crash
+    # same-death dedup must hold ACROSS trigger sources (device-found: watchdog + sticky FGS each
+    # counted the same crash) => the handled timestamp is shared through the cross-process file
+    assert "RecoveryGate.recordHandled(" in crash and "handledExitMs" in crash
+    assert "maxOf(store.lastHandledExitMs(), gate.handledExitMs)" in crash
     assert "postFallbackNotification(" in crash
     assert "accessibility not enabled; " in crash
     assert "recovery MainActivity arrival not observed" in crash
@@ -179,13 +233,17 @@ def check_shared_recovery_path():
     settings = now(SETTINGS)
     assert "AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS" in settings
     assert "CrashRecoveryAccessibilityService.isEnabled(context)" in settings
-    assert "CrashRecoveryAccessibilityService.connected" in settings
+    assert "CrashRecoveryAccessibilityService.isConnected(context)" in settings
     assert "R.string.pref_crash_recovery_notification_denied" in settings
     print("PASS: settings page detects enabled/connected, one-tap system settings, notification guidance")
 
-    # a11y rebind after a crash must not be over-claimed (independent review, AOSP mCrashedServices)
+    # a11y rebind after a crash must not be over-claimed (independent review, AOSP mCrashedServices);
+    # the surviving trigger is the dedicated process, not a same-process rebind.
     svc = now(A11Y)
-    assert "must NOT be assumed" in svc and "skips re-binding" in svc
+    assert "mCrashedServices" in svc and "重绑时跳过" in svc
+    assert ":a11y" in svc and "独立进程" in svc
+    # the gate mirror is written where the session starts, so the :a11y process sees it on disk
+    assert "RecoveryPrefs.ENABLED_MIRROR" in now(KEEPALIVE)
 
     # success-reset: a completed restore clears the attempt budget (history must not block one recovery)
     vm = now(JAVA + "pages/DeviceTabViewModel.kt")
@@ -271,6 +329,7 @@ def check():
     # --- round16: the accessibility trigger + shared path ---
     check_accessibility_service()
     check_accessibility_xml_and_manifest()
+    check_dedicated_process_watchdog()
     check_shared_recovery_path()
     check_round16_change_surface()
     check_pb1_frozen()
