@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import io.github.miuzarte.scrcpyforandroid.i18n.LocalizedActivity
 import io.github.miuzarte.scrcpyforandroid.pages.MainScreen
 import io.github.miuzarte.scrcpyforandroid.password.BiometricGate
@@ -22,7 +23,8 @@ import io.github.miuzarte.scrcpyforandroid.services.UnlockJumpController
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveScheduler
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.RecoveryPrefs
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 // 生物认证需要 FragmentActivity
 class MainActivity: LocalizedActivity() {
@@ -41,14 +43,18 @@ class MainActivity: LocalizedActivity() {
             ProcessKeepAliveScheduler.ensureScheduled(applicationContext)
         }
 
-        runBlocking {
-            PasswordRepository.refresh()
-            // 认证不可用时, 清除经认证创建的密码
-            if (!BiometricGate.canAuthenticate()) {
-                PasswordRepository.getAll()
-                    .filter { it.createdWithAuth.hasAuthenticatedOrigin && it.cipherText != null }
-                    .forEach { PasswordRepository.markInvalid(it.id) }
-            }
+        // 存储损坏时 getAll() 会抛 PasswordStorageCorruptedException (主线程必崩);
+        // 改用 refresh() 内部已吞异常填充的 entriesState, 并整体移出主线程。
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching {
+                PasswordRepository.refresh()
+                // 认证不可用时, 清除经认证创建的密码
+                if (!BiometricGate.canAuthenticate()) {
+                    PasswordRepository.entriesState.value
+                        .filter { it.createdWithAuth.hasAuthenticatedOrigin && it.cipherText != null }
+                        .forEach { PasswordRepository.markInvalid(it.id) }
+                }
+            }.onFailure { Log.w("MainActivity", "Password storage unavailable", it) }
         }
 
         // 请求附近设备/局域网 mDNS 发现所需的运行时权限
