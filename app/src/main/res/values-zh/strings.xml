@@ -209,6 +209,8 @@
     <string name="fullscreen_rotate_sent">已向被控端发送旋转请求</string>
     <string name="fullscreen_rotate_failed">旋转请求发送失败（无活跃会话）</string>
     <string name="fullscreen_scale_reset">复位</string>
+    <string name="fullscreen_scale_lock">锁定</string>
+    <string name="fullscreen_scale_unlock">解锁</string>
     <string name="vb_app_transfer">应用流转</string>
     <string name="vb_vd_resolution">虚拟屏幕分辨率</string>
     <string name="fullscreen_pick_app_for_transfer">选择要在应用流转（虚拟显示）中启动的应用</string>

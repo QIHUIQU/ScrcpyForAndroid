@@ -210,6 +210,8 @@
     <string name="fullscreen_rotate_sent">Rotate request sent to the controlled device</string>
     <string name="fullscreen_rotate_failed">Failed to send rotate request (no active session)</string>
     <string name="fullscreen_scale_reset">Reset</string>
+    <string name="fullscreen_scale_lock">Lock</string>
+    <string name="fullscreen_scale_unlock">Unlock</string>
     <string name="vb_app_transfer">App transfer</string>
     <string name="vb_vd_resolution">Virtual display resolution</string>
     <string name="fullscreen_pick_app_for_transfer">Pick an app to start in app transfer (virtual display)</string>

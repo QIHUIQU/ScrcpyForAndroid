@@ -701,6 +701,17 @@ fun FullscreenControlScreen(
                             NativeCoreFacade.setVideoScale(VideoScaleSettings.DEFAULT_SCALE)
                         },
                     )
+                    // 用户要求: 把设置页的「锁定画面倍率」搬进缩放面板; 同一 asBundle(DataStore) 源,
+                    // 点按即时生效且持久。锁定时上方滑块/复位置灰, 本键保留可点以便解锁。
+                    TextButton(
+                        text = stringResource(
+                            if (asBundle.videoScaleLocked) R.string.fullscreen_scale_unlock
+                            else R.string.fullscreen_scale_lock,
+                        ),
+                        onClick = {
+                            asBundle = asBundle.copy(videoScaleLocked = !asBundle.videoScaleLocked)
+                        },
+                    )
                 }
             }
 
