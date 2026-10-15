@@ -271,8 +271,9 @@ class Scrcpy(
                             videoBitRate = options.videoBitRate,
                             audioBitRate = options.audioBitRate,
                         )
-                        recorder.start()
+                        // 先赋值再 start(): start() 失败时 catch 才能释放它 (P1-1)
                         mp4Recorder = recorder
+                        recorder.start()
                         if (options.audio && info.audioCodec != null) {
                             session.attachAudioConsumer { packet ->
                                 recorder.feedAudioPacket(packet.data, packet.ptsUs, packet.isConfig)
@@ -329,17 +330,24 @@ class Scrcpy(
 
         } catch (e: Exception) {
             Log.e(TAG, "start(): Failed to start scrcpy session", e)
-            audioPlayer?.release()
-            audioPlayer = null
-            runCatching { mp4Recorder?.release() }
-            mp4Recorder = null
-            runCatching { wavRecorder?.release() }
-            wavRecorder = null
-            runCatching { aacRecorder?.release() }
-            aacRecorder = null
-            isRunning = false
-            flexDisplay = false
-            _currentSessionState.value = null
+            withContext(NonCancellable) {
+                runCatching { audioPlayer?.release() }
+                audioPlayer = null
+                runCatching { mp4Recorder?.release() }
+                mp4Recorder = null
+                runCatching { wavRecorder?.release() }
+                wavRecorder = null
+                runCatching { aacRecorder?.release() }
+                aacRecorder = null
+                // 会话可能已经跑起来(server/流/解码器/剪贴板同步已就绪): 补上停止通道,
+                // 否则停止按钮失效、画面仍在渲染、server 与日志线程泄漏 (P1-1)
+                runCatching { NativeCoreFacade.onScrcpySessionStopped() }
+                runCatching { session.stop() }
+                runCatching { stopClipboardSync() }
+                isRunning = false
+                flexDisplay = false
+                _currentSessionState.value = null
+            }
             throw e
         }
     }
