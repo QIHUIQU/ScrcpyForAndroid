@@ -72,7 +72,7 @@ object ControlledLockWakeController {
      * 真安全锁的自动提交（安全边界：默认开启但需显式登记）：
      * 仅当设置开启、且密码库存在“名称与设备序列号完全相同、创建时未启用认证”的唯一条目时
      * 尝试一次输入 + 回车；无匹配一律降级为「已唤醒 + 提示手动输入」。凭据不落日志，
-     * [InjectionController] 复制后清零。提交结果控制端无法验证 ⇒ 仅记录“已提交”。
+     * 提交后立即清零。提交结果控制端无法验证 ⇒ 仅记录“已提交”。
      */
     private suspend fun submitSavedCredential(scrcpy: Scrcpy) {
         val serial = AppRuntime.currentConnectedDevice?.serial.orEmpty()
@@ -100,9 +100,12 @@ object ControlledLockWakeController {
                 // 850ms: 部分设备从 MENU 键到凭证界面真正可见需要 ~0.5-1s, 注入过早会丢字符
                 // (旧值 350ms 在低性能/无动画场景偶发失败); 后台流程, 慢一点无感
                 delay(850)
-                InjectionController.inject(password)
-                scrcpy.injectKeycode(0, 66) // KEYCODE_ENTER down/up 提交
-                scrcpy.injectKeycode(1, 66)
+                // 自动解锁的注入不算「用户用完」: notifyBlackout=false, 否则 PB-1 会在解锁后
+                // 立刻把被控端黑屏(默认 D=0 立即 fire) —— PB-1 与自动解锁互斥根因 (P0-3)。
+                // 凭据在 finally 清零。
+                check(InjectionController.inject(password, notifyBlackout = false)) { "Credential text not sent" }
+                check(scrcpy.injectKeycode(0, 66, notifyBlackout = false)) { "Credential submit down not sent" }
+                check(scrcpy.injectKeycode(1, 66, notifyBlackout = false)) { "Credential submit up not sent" }
             } finally {
                 password.fill('\u0000')
             }

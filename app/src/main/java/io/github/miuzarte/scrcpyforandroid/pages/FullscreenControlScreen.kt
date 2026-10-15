@@ -442,6 +442,15 @@ fun FullscreenControlScreen(
                             if (useLegacyPaste) scrcpy.injectText(text)
                             else scrcpy.setClipboard(text, paste = true)
                         }
+                    }.onSuccess { sent ->
+                        // P1-6: 控制通道不可用时返回 false ⇒ 给可见失败反馈, 不再静默当成成功
+                        if (!sent) {
+                            Log.w("FullscreenControl", "pasteLocalClipboard: control channel unavailable")
+                            AppRuntime.snackbar(
+                                if (useLegacyPaste) R.string.fullscreen_legacy_paste_failed
+                                else R.string.fullscreen_clipboard_sync_failed,
+                            )
+                        }
                     }.onFailure { error ->
                         Log.w("FullscreenControl", "pasteLocalClipboard failed", error)
                         AppRuntime.snackbar(

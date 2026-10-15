@@ -403,13 +403,18 @@ class Scrcpy(
         session.resizeDisplay(width, height)
     }
 
+    /**
+     * @param notifyBlackout PB-1: true = 视为控制端「用完」操作 (默认, 用户主动操作);
+     *   自动解锁等系统注入传 false, 否则注入后会被 PB-1 立刻黑屏
+     */
     suspend fun injectKeycode(
         action: Int,
         keycode: Int,
         repeat: Int = 0,
         metaState: Int = 0,
-    ) = withContext(Dispatchers.IO) {
-        PaymentBlackoutCoordinator.onControlOp()
+        notifyBlackout: Boolean = true,
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (notifyBlackout) PaymentBlackoutCoordinator.onControlOp()
         session.injectKeycode(
             action = action,
             keycode = keycode,
@@ -418,12 +423,15 @@ class Scrcpy(
         )
     }
 
-    suspend fun injectText(text: String) = withContext(Dispatchers.IO) {
-        PaymentBlackoutCoordinator.onControlOp()
-        session.injectText(text)
-    }
+    /** @param notifyBlackout 见 [injectKeycode]; 自动解锁注入传 false */
+    suspend fun injectText(text: String, notifyBlackout: Boolean = true): Boolean =
+        withContext(Dispatchers.IO) {
+            if (notifyBlackout) PaymentBlackoutCoordinator.onControlOp()
+            session.injectText(text)
+        }
 
-    suspend fun setClipboard(text: String, paste: Boolean) = withContext(Dispatchers.IO) {
+    /** @return true = 控制消息已写出; false = 控制通道不可用 (调用方可据此提示用户) */
+    suspend fun setClipboard(text: String, paste: Boolean): Boolean = withContext(Dispatchers.IO) {
         session.setClipboard(text, paste)
     }
 
@@ -1463,15 +1471,15 @@ class Scrcpy(
             keycode: Int,
             repeat: Int = 0,
             metaState: Int = 0,
-        ) = mutex.withLock {
+        ): Boolean = mutex.withLock {
             withControlWriter("injectKeycode") { injectKeycode(action, keycode, repeat, metaState) }
         }
 
-        suspend fun injectText(text: String) = mutex.withLock {
+        suspend fun injectText(text: String): Boolean = mutex.withLock {
             withControlWriter("injectText") { injectText(text) }
         }
 
-        suspend fun setClipboard(text: String, paste: Boolean) = mutex.withLock {
+        suspend fun setClipboard(text: String, paste: Boolean): Boolean = mutex.withLock {
             withControlWriter("setClipboard") { setClipboard(text, paste) }
         }
 
@@ -1607,20 +1615,29 @@ class Scrcpy(
                 ?: throw IllegalStateException("scrcpy control channel not available")
         }
 
-        private inline fun withControlWriter(tag: String, block: ControlWriter.() -> Unit) {
+        /**
+         * 执行一次控制写入。
+         *
+         * @return true = 控制消息已写出; false = 控制通道不存活/不可用 (P1-6: 调用方据此
+         *   给出可见失败反馈, 而不是静默当成成功)。触控热路径忽略返回值。
+         */
+        private inline fun withControlWriter(tag: String, block: ControlWriter.() -> Unit): Boolean {
             if (!controlChannelAlive) {
                 Log.w(TAG, "$tag(): control channel not alive")
-                return
+                return false
             }
-            try {
+            return try {
                 requireControlWriter().block()
+                true
             } catch (e: IllegalStateException) {
                 controlChannelAlive = false
                 Log.w(TAG, "$tag(): control channel not available", e)
+                false
             } catch (e: IOException) {
                 controlChannelAlive = false
                 Log.w(TAG, "$tag(): control channel I/O failed, marking dead", e)
                 onSessionDied()
+                false
             }
         }
 

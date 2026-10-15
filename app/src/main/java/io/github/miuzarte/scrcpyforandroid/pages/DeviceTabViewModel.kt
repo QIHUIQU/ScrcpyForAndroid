@@ -892,10 +892,11 @@ internal class DeviceTabViewModel(
         }
         val useLegacyPaste = connectedScrcpyBundle.value.legacyPaste
         runCatching {
-            withContext(Dispatchers.IO) {
+            val sent = withContext(Dispatchers.IO) {
                 if (useLegacyPaste) scrcpy.injectText(text)
                 else scrcpy.setClipboard(text, paste = true)
             }
+            check(sent) { "Clipboard control message not sent" }
             logEvent(
                 if (useLegacyPaste) R.string.vm_legacy_paste_injected
                 else R.string.vm_clipboard_synced_paste,

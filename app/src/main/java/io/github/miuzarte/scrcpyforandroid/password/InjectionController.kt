@@ -5,10 +5,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 object InjectionController {
-    suspend fun inject(password: CharArray) {
+    suspend fun inject(password: CharArray, notifyBlackout: Boolean = true): Boolean {
         try {
-            withContext(Dispatchers.IO) {
-                AppRuntime.scrcpy?.injectText(String(password))
+            return withContext(Dispatchers.IO) {
+                AppRuntime.scrcpy?.injectText(String(password), notifyBlackout) == true
             }
         } finally {
             password.fill('\u0000')

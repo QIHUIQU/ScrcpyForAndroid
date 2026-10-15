@@ -22,13 +22,14 @@ internal suspend fun submitImeText(
     val useClipboardPaste = text.any { it.code > 0x7F }
     Log.i(TAG, "submitImeText: len=${text.length} route=${if (useClipboardPaste) "clipboard+paste" else "injectText"}")
     runCatching {
-        withContext(Dispatchers.IO) {
+        val sent = withContext(Dispatchers.IO) {
             if (useClipboardPaste) {
                 scrcpy.setClipboard(text, paste = true)
             } else {
                 scrcpy.injectText(text)
             }
         }
+        check(sent) { "IME text control message not sent" }
     }.onFailure { error ->
         onFailure(error, useClipboardPaste)
     }
