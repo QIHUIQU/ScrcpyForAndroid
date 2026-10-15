@@ -92,13 +92,6 @@ object NativeCoreFacade {
     val restartInProgress: StateFlow<Boolean> = _restartInProgress.asStateFlow()
     private val isRestarting: Boolean get() = _restartInProgress.value
 
-    suspend fun close() {
-        sessionLifecycleMutex.withLock {
-            controller.releaseAll()
-            renderer.release()
-        }
-    }
-
     /**
      * Register the current rendering [surface].
      *
