@@ -333,7 +333,8 @@ internal class VideoDecoderController(
                 packet.isConfig,
             )
         }
-        return dec.isUsable()
+        // A decoder intentionally released/replaced during size change is not a codec error.
+        return synchronized(controllerLock) { decoder !== dec || dec.isUsable() }
     }
 
     /**

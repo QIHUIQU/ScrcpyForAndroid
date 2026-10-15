@@ -128,12 +128,15 @@ class MediaCodecVideoDecoder(
                 // MAX_INPUT_WAIT_US so a wedged decoder cannot stall the reader forever;
                 // if the bound is exceeded we drop + request a fresh IDR (RESET_VIDEO).
                 var waitedUs = INPUT_TIMEOUT_US
-                while (inputIndex < 0 && waitedUs < MAX_INPUT_WAIT_US) {
+                // !released: 主线程旋转/尺寸变化时释放解码器, 让本等待循环立刻退出,
+                // 不必等跑满上界(最长 MAX_INPUT_WAIT_US=2s, 逼近 ANR) (P1-4)
+                while (inputIndex < 0 && waitedUs < MAX_INPUT_WAIT_US && !released) {
                     drainOutput()
                     inputIndex = codec.dequeueInputBuffer(CRITICAL_INPUT_TIMEOUT_US)
                     waitedUs += CRITICAL_INPUT_TIMEOUT_US
                 }
             }
+            if (released) return
             if (inputIndex >= 0) {
                 val inBuf = codec.getInputBuffer(inputIndex)
                 inBuf?.clear()
@@ -195,14 +198,20 @@ class MediaCodecVideoDecoder(
     /**
      * Release the codec resources.
      *
-     * - Stops decoding, releases the MediaCodec instance, and marks this decoder as released
-     *   so subsequent calls are no-ops.
+     * - Marks this decoder as released so subsequent calls are no-ops.
+     * - `released` is set **before** acquiring the monitor: it is @Volatile, so the video
+     *   reader thread blocked inside the [feedAnnexB] input-buffer wait loop sees it and
+     *   exits immediately instead of running the loop to its upper bound (up to
+     *   MAX_INPUT_WAIT_US = 2s). Without this the main thread (rotation / size change)
+     *   would wait on the decoder monitor for up to 2s (P1-4). The synchronized body still
+     *   serializes codec stop/release against concurrent feed calls.
      */
-    @Synchronized
     fun release() {
         released = true
-        runCatching { codec.stop() }
-        runCatching { codec.release() }
+        synchronized(this) {
+            runCatching { codec.stop() }
+            runCatching { codec.release() }
+        }
     }
 
     /**
@@ -212,7 +221,7 @@ class MediaCodecVideoDecoder(
     fun isUsable(): Boolean = !released && codecError == null
 
     private fun drainOutput() {
-        while (true) {
+        while (!released) {
             val outIndex = codec.dequeueOutputBuffer(bufferInfo, OUTPUT_TIMEOUT_US)
             when {
                 outIndex >= 0 -> {
