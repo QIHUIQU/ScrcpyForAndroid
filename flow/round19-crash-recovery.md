@@ -128,7 +128,9 @@
   - `fb9065d` `fix(recovery): reach the fullscreen page and signal arrival across processes`
   - `afdd1fd` `test(scope): retarget the source guard to Round19`
   - `dfd7d4b` `docs(round19): hand off v16.2, the two root causes and the honest gaps`
-  - 收尾 `docs(round19): v16.2 delivery anchors`（本 §8 + 交付根报告 + findings README + final-verification.json）
+  - `0475381` `docs(round19): v16.2 delivery anchors and docs-check closure`（§8 + 交付根报告 + findings README + final-verification.json）
+  - `3b30526` `docs(round19): reference the parallel package-audit report for task C`
+  - 本轮分支 HEAD = `3b30526bbc851def6c5ae1054befe4f7b3916e07`（= `git ls-remote origin feat/eink-port-20261013` 读回）
 - 远端：`origin https://github.com/QIHUIQU/ScrcpyForAndroid.git`；推送后 `git ls-remote origin feat/eink-port-20261013` 读回 = 分支 HEAD（见 `findings-20261015-round19/final-verification.json`）。
 - 双 clean 构建：两次 `:app:clean :app:assembleDebug :app:testDebugUnitTest`，各 **22 套件 124 例 0 失败/0 错误/0 跳过**；五个 APK 逐字节一致（`findings-20261015-round19/build/clean1.sha` = `clean2.sha`）。测试真实 XML 数：22 套件（`build/clean{1,2}-xml/*.xml`）。
 - 候选：`artifacts/ScrcpyForAndroid-EinkPort-candidate.apk`，49,146,351 B，SHA256 `dac1976f1aaac105ff2ce3c4e868c867fb42ffcc7be0429f96a4231ae500f36f`；apksigner V2 同旧证书 `c8c1b8b58c6f1f927293e03a1564c5666398e3442edc009fadb4e1c9cf736126`；内置 server 字节不变；装机 `pm path` 回读一致。
