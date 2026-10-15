@@ -14,6 +14,8 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -34,6 +36,8 @@ object PaymentBlackoutCoordinator {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Any()
+    // One sampling/decision/action transaction: poll and op samples cannot overtake each other.
+    private val decisionMutex = Mutex()
 
     @Volatile
     private var machine: PaymentBlackoutStateMachine? = null
@@ -94,7 +98,11 @@ object PaymentBlackoutCoordinator {
         val last = lastOpDispatchMs.get()
         if (now - last < OP_THROTTLE_MS) return
         if (!lastOpDispatchMs.compareAndSet(last, now)) return
-        scope.launch { dispatchControlOp(m) }
+        scope.launch {
+            decisionMutex.withLock {
+                if (machine === m) dispatchControlOp(m)
+            }
+        }
     }
 
     private suspend fun dispatchControlOp(m: PaymentBlackoutStateMachine) {
@@ -103,43 +111,48 @@ object PaymentBlackoutCoordinator {
         // panel back. Sample the real panel power before the op so the "returned to the control
         // side" operation can black out again right away instead of waiting for the next poll.
         if (m.blacked()) {
-            applyResult(m.onDisplayObserved(readDisplayObservation(), now))
+            applyResult(m.onDisplayObserved(readDisplayObservation(), SystemClock.elapsedRealtime()), m)
         }
+        if (machine !== m) return
         if (m.state() == PaymentBlackoutStateMachine.State.ARMED &&
             lastDispatched == PaymentBlackoutStateMachine.LockObservation.LOCKED
         ) {
             // Re-check at op time so a stale LOCKED observation cannot mis-trigger a blackout.
             val fresh = readLockState()
+            if (machine !== m) return
             if (fresh == PaymentBlackoutStateMachine.LockObservation.UNLOCKED) {
                 lastDispatched = fresh
-                applyResult(m.onControlledRewake(now))
+                applyResult(m.onControlledRewake(now), m)
             }
         }
-        applyResult(m.onControlOp(now))
+        applyResult(m.onControlOp(now), m)
     }
 
     private suspend fun pollLoop() {
         var tick = 0L
         while (currentCoroutineContext().isActive) {
-            val m = machine ?: return
-            val now = SystemClock.elapsedRealtime()
-            applyResult(m.onTick(now))
-            if (tick % POLL_EVERY_TICKS == 0L) {
-                val state = readLockState()
-                if (state != PaymentBlackoutStateMachine.LockObservation.UNKNOWN &&
-                    state != lastDispatched
-                ) {
-                    lastDispatched = state
-                    if (state == PaymentBlackoutStateMachine.LockObservation.LOCKED) {
-                        applyResult(m.onControlledLocked(now))
-                    } else {
-                        applyResult(m.onControlledRewake(now))
+            decisionMutex.withLock {
+                val m = machine ?: return
+                val now = SystemClock.elapsedRealtime()
+                applyResult(m.onTick(now), m)
+                if (tick % POLL_EVERY_TICKS == 0L) {
+                    val state = readLockState()
+                    if (machine !== m) return@withLock
+                    if (state != PaymentBlackoutStateMachine.LockObservation.UNKNOWN &&
+                        state != lastDispatched
+                    ) {
+                        lastDispatched = state
+                        if (state == PaymentBlackoutStateMachine.LockObservation.LOCKED) {
+                            applyResult(m.onControlledLocked(now), m)
+                        } else {
+                            applyResult(m.onControlledRewake(now), m)
+                        }
                     }
-                }
-                // While a blackout is latched, watch the real panel power (same poll, no new timer):
-                // an external wake must clear the latch, otherwise the blackout never comes back.
-                if (m.blacked()) {
-                    applyResult(m.onDisplayObserved(readDisplayObservation(), now))
+                    // While a blackout is latched, watch the real panel power (same poll, no new timer):
+                    // an external wake must clear the latch, otherwise the blackout never comes back.
+                    if (m.blacked()) {
+                        applyResult(m.onDisplayObserved(readDisplayObservation(), SystemClock.elapsedRealtime()), m)
+                    }
                 }
             }
             tick++
@@ -169,7 +182,8 @@ object PaymentBlackoutCoordinator {
         }
     }
 
-    private suspend fun applyResult(result: PaymentBlackoutStateMachine.Result) {
+    private suspend fun applyResult(result: PaymentBlackoutStateMachine.Result, m: PaymentBlackoutStateMachine) {
+        if (machine !== m) return // A completed read must not act on a replacement session.
         val event = result.event()
         if (event != "noop:tick_noop" && event != "noop:pending_wait" && event != "noop:blackout_off_still") {
             Log.i(TAG, PaymentBlackoutConfig.LOG_PREFIX + result.describe())

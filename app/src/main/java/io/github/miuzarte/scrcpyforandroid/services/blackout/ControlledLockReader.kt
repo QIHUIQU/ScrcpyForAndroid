@@ -24,7 +24,7 @@ object ControlledLockReader {
 
     private val SHOWING = Pattern.compile("(?:^|\\s)showing=(true|false)(?:\\s|$)")
     private val VIRTUAL_DISPLAY_HEADER = Pattern.compile("^Virtual Display\\s")
-    private val DISPLAY_HEADER = Pattern.compile("^Display\\s")
+    private val DISPLAY_HEADER = Pattern.compile("^Display\\s+\\d+$")
     private val POWER_MODE = Pattern.compile("^powerMode=(\\S+)$")
 
     fun parse(output: String?): PaymentBlackoutStateMachine.LockObservation {
@@ -53,25 +53,37 @@ object ControlledLockReader {
     fun parseDisplayPower(output: String?): PaymentBlackoutStateMachine.DisplayObservation {
         if (output.isNullOrEmpty()) return PaymentBlackoutStateMachine.DisplayObservation.UNKNOWN
         var physical = 0
+        var modes = 0
         var allOff = true
         var inPhysicalBlock = false
+        var modeSeenInBlock = false
         for (rawLine in output.split('\n')) {
             val line = rawLine.trim()
             if (VIRTUAL_DISPLAY_HEADER.matcher(line).find()) {
+                if (inPhysicalBlock && !modeSeenInBlock) return PaymentBlackoutStateMachine.DisplayObservation.UNKNOWN
                 inPhysicalBlock = false
                 continue
             }
             if (DISPLAY_HEADER.matcher(line).find()) {
+                if (inPhysicalBlock && !modeSeenInBlock) return PaymentBlackoutStateMachine.DisplayObservation.UNKNOWN
+                physical++
                 inPhysicalBlock = true
+                modeSeenInBlock = false
                 continue
             }
             if (!inPhysicalBlock) continue
             val matcher = POWER_MODE.matcher(line)
             if (!matcher.find()) continue
-            physical++
-            if (!matcher.group(1).equals("Off", ignoreCase = true)) allOff = false
+            if (modeSeenInBlock) return PaymentBlackoutStateMachine.DisplayObservation.UNKNOWN
+            modeSeenInBlock = true
+            modes++
+            when (matcher.group(1)) {
+                "Off" -> Unit
+                "On", "Doze", "DozeSuspend", "OnSuspend" -> allOff = false
+                else -> return PaymentBlackoutStateMachine.DisplayObservation.UNKNOWN
+            }
         }
-        if (physical == 0) return PaymentBlackoutStateMachine.DisplayObservation.UNKNOWN
+        if (physical == 0 || modes != physical) return PaymentBlackoutStateMachine.DisplayObservation.UNKNOWN
         return if (allOff) {
             PaymentBlackoutStateMachine.DisplayObservation.OFF
         } else {

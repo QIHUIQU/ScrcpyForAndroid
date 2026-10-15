@@ -71,6 +71,15 @@ class ControlledLockReaderTest {
         assertEquals(DISPLAY_UNKNOWN, ControlledLockReader.parseDisplayPower(""))
     }
 
+    @Test
+    fun malformedOrPartialPhysicalPowerIsUnknown() {
+        assertEquals(DISPLAY_UNKNOWN, ControlledLockReader.parseDisplayPower(physicalDump("Off", "Banana")))
+        assertEquals(DISPLAY_UNKNOWN, ControlledLockReader.parseDisplayPower(physicalDump("Off", "")))
+        val missingOuter = physicalDump("Off", "Off").replaceFirst("powerMode=Off", "modeMissing=Off")
+        assertEquals(DISPLAY_UNKNOWN, ControlledLockReader.parseDisplayPower(missingOuter))
+        assertEquals(DISPLAY_UNKNOWN, ControlledLockReader.parseDisplayPower("Display summary\n  powerMode=On\n"))
+    }
+
     private companion object {
         val DISPLAY_UNKNOWN = PaymentBlackoutStateMachine.DisplayObservation.UNKNOWN
         val DISPLAY_ON = PaymentBlackoutStateMachine.DisplayObservation.ON

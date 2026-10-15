@@ -70,6 +70,7 @@ class PaymentBlackoutStateMachine(config: ConfigSource?) {
     private var state: State = State.IDLE
     private var blacked = false
     private var blackoutConfirmed = false
+    private var blackoutAtMs = 0L
     private var pendingFireAtMs = 0L
     private var fallbackStartMs = 0L
     private var fallbackArmed = false
@@ -145,9 +146,9 @@ class PaymentBlackoutStateMachine(config: ConfigSource?) {
      *   Off while blacked            -> the blackout is confirmed in effect;
      *   On  while blacked+confirmed  -> the user brought the screen back (external use) = the round
      *                                   is over: clear the latch so the next op may black out again;
-     *   On  before any Off was seen  -> the pre-command/stale sample of the round that just fired
-     *                                   (the setDisplayPower command is still in flight): never a
-     *                                   reset, otherwise every op would re-fire on a stale sample;
+     *   On before any Off was seen   -> wait one poll interval for the asynchronous command;
+     *                                   afterwards a fresh ON also resets (a fast external wake
+     *                                   can hide the entire Off interval between samples).
      *   UNKNOWN                      -> never acted upon (never reset on a doubtful dump).
      */
     @Synchronized fun onDisplayObserved(obs: DisplayObservation, nowMs: Long): Result {
@@ -166,7 +167,8 @@ class PaymentBlackoutStateMachine(config: ConfigSource?) {
                     result(EMPTY, "blackout_confirmed", tf)
                 }
             }
-            !blackoutConfirmed -> noop("display_on_preconfirm_noop", tf)
+            !blackoutConfirmed && nowMs - blackoutAtMs < DISPLAY_COMMAND_GRACE_MS ->
+                noop("display_on_preconfirm_noop", tf)
             else -> {
                 blacked = false
                 blackoutConfirmed = false
@@ -192,7 +194,7 @@ class PaymentBlackoutStateMachine(config: ConfigSource?) {
             )
         }
         if (d == 0) {
-            return applyBlackout("fire", d, tf)
+            return applyBlackout("fire", d, tf, nowMs)
         }
         state = State.PENDING
         pendingFireAtMs = nowMs + d.toLong() * 1000L
@@ -205,7 +207,7 @@ class PaymentBlackoutStateMachine(config: ConfigSource?) {
         val tf = fallbackThresholdSec()
         if (state == State.PENDING) {
             if (nowMs >= pendingFireAtMs) {
-                return applyBlackout("fire", d, tf)
+                return applyBlackout("fire", d, tf, nowMs)
             }
             return noop("pending_wait", tf)
         }
@@ -216,7 +218,7 @@ class PaymentBlackoutStateMachine(config: ConfigSource?) {
                 return noop("fallback_blacked", tf)
             }
             if (lastObs == LockObservation.LOCKED) {
-                return applyBlackout("fallback", d, tf)
+                return applyBlackout("fallback", d, tf, nowMs)
             }
             fallbackStartMs = nowMs
             deferCount++
@@ -237,10 +239,11 @@ class PaymentBlackoutStateMachine(config: ConfigSource?) {
 
     // ================= internal =================
 
-    private fun applyBlackout(event: String, d: Int, tf: Int): Result {
+    private fun applyBlackout(event: String, d: Int, tf: Int, nowMs: Long): Result {
         state = State.ARMED
         blacked = true
         blackoutConfirmed = false
+        blackoutAtMs = nowMs
         pendingFireAtMs = 0L
         fireCount++
         return Result(listOf(Action.APPLY_BLACKOUT), event, state, blacked, d, tf)
@@ -261,6 +264,8 @@ class PaymentBlackoutStateMachine(config: ConfigSource?) {
 
     private companion object {
         private val EMPTY = emptyList<Action>()
+        // ponytail: bounded command grace, not proof of OFF; ON still requires a fresh real dump.
+        private const val DISPLAY_COMMAND_GRACE_MS = 5_000L
 
         /** Default config when none injected (delay 0, fallback on, threshold 30) — never crash. */
         private val DEFAULT_CONFIG = object : ConfigSource {

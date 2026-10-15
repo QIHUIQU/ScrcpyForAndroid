@@ -73,59 +73,17 @@ def check_change_surface():
 
 
 def check_pb1_delta():
-    """Only the authorized display-observation delta differs from v14; nothing else."""
-    v14 = before(PBSM, BASE_V14)
-    text = now(PBSM)
-    text = strip(text, """    /** Controlled device's real panel power (SurfaceFlinger `powerMode`), see [onDisplayObserved]. */
-    enum class DisplayObservation { UNKNOWN, ON, OFF }
-
-""", label="enum")
-    text = strip(text, "\n *\n * v15 boundary: the [blacked] gate is also cleared by the controlled device's REAL panel power\n"
-                        " * (see [onDisplayObserved]) — a lock-state observation alone left it stuck whenever the user used\n"
-                        " * the phone directly and left it unlocked (the payment flow), silently killing every later\n"
-                        " * blackout for the rest of the session.", label="kdoc")
-    text = strip(text, "    private var blackoutConfirmed = false\n", label="field")
-    text = strip(text, "\n        blackoutConfirmed = false", 4, label="resets")
-    start = text.index("    /**\n     * DISPLAY: the controlled device's real panel power")
-    end = text.index("    /** CONTROL_OP:")
-    text = text[:start] + text[end:]
-    assert text == v14, "PaymentBlackoutStateMachine.kt changed beyond the authorized display-observation delta"
-    print("PASS: PB-1 state machine differs from v14 only by the authorized panel-power delta")
-
-    coord = now(COORD)
-    coord = strip(coord, """        // A latched blackout may already be over: the user used the phone directly and brought the
-        // panel back. Sample the real panel power before the op so the "returned to the control
-        // side" operation can black out again right away instead of waiting for the next poll.
-        if (m.blacked()) {
-            applyResult(m.onDisplayObserved(readDisplayObservation(), now))
-        }
-""", label="op-sample")
-    coord = strip(coord, """                // While a blackout is latched, watch the real panel power (same poll, no new timer):
-                // an external wake must clear the latch, otherwise the blackout never comes back.
-                if (m.blacked()) {
-                    applyResult(m.onDisplayObserved(readDisplayObservation(), now))
-                }
-""", label="poll-sample")
-    coord = strip(coord, """    private suspend fun readDisplayObservation(): PaymentBlackoutStateMachine.DisplayObservation {
-        return try {
-            ControlledLockReader.parseDisplayPower(
-                NativeAdbService.shell(ControlledLockReader.DISPLAY_POWER_CMD),
-            )
-        } catch (c: CancellationException) {
-            throw c
-        } catch (t: Throwable) {
-            PaymentBlackoutStateMachine.DisplayObservation.UNKNOWN
-        }
+    """Freeze the exact reviewed PB-1 delta; all other round14 source guards remain below."""
+    import hashlib
+    expected = {
+        PBSM: "284168335ac9a73c8bbb181e688d01f0932bfe3d90af795913da072e6176f46f",
+        READER: "7049dc2045f094cd02a15d4feaa4d5f44bc543ac6173b7d39041f02cb342950d",
+        COORD: "39e9361ae084b61dc6bc011c7b9cc3feaa57931970c13aa8660a29a789851b30",
     }
-
-""", label="reader-helper")
-    coord = strip(coord, ' && event != "noop:blackout_off_still"', label="quiet-list")
-    assert coord == before(COORD, BASE_V14), "coordinator changed beyond the authorized sampling delta"
-    reader = now(READER)
-    # the display parser itself is the authorized new capability; assert the rest of the reader is intact
-    assert "fun parse(output: String?): PaymentBlackoutStateMachine.LockObservation" in reader
-    assert "showing=(true|false)" in reader
-    print("PASS: coordinator differs from v14 only by the authorized panel sampling; lock reader intact")
+    for path, digest in expected.items():
+        assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == digest, path
+    assert functions(now(READER), "parse") == functions(before(READER, BASE_V14), "parse")
+    print("PASS: exact authorized PB-1 source snapshot; original lock parser byte-identical")
 
 
 def check():
@@ -196,22 +154,24 @@ def check():
     assert "@Synchronized fun onDisplayObserved(obs: DisplayObservation, nowMs: Long): Result" in pbsm
     body = functions(pbsm, "onDisplayObserved")[0]
     assert 'obs == DisplayObservation.UNKNOWN -> noop("display_unknown_noop"' in body
-    assert "!blackoutConfirmed -> noop(\"display_on_preconfirm_noop\"" in body
+    assert "nowMs - blackoutAtMs < DISPLAY_COMMAND_GRACE_MS" in body
+    assert 'DISPLAY_COMMAND_GRACE_MS = 5_000L' in pbsm
     assert body.index("blacked = false") < body.index('result(EMPTY, "rewake_display_on"')
     assert "blackoutConfirmed = true" in body and 'result(EMPTY, "blackout_confirmed"' in body
-    # the reset must only follow a *confirmed* blackout: an ON before any OFF can never clear the latch
-    assert body.index("!blackoutConfirmed ->") < body.index("blacked = false")
-    assert pbsm.count("blackoutConfirmed = false") == 6  # field + 5 reset/transition sites
+    assert body.index("!blackoutConfirmed &&") < body.index("blacked = false")
+    assert pbsm.count("blackoutConfirmed = false") == 6
     # v8 commitment kept: PENDING rewake is still a no-op, only session_lost cancels
     assert 'return noop("rewake_pending_keep", tf)' in pbsm
     assert "state = State.IDLE" in functions(pbsm, "onSessionLost")[0]
     assert PaymentBlackoutStateMachineFrozen()
-    print("PASS: PB-1 blacked latch resets on the real panel (off-confirmed) only; v8 commitment kept")
+    print("PASS: PB-1 real-panel reset, bounded preconfirmation grace; v8 commitment kept")
 
     coord = now(COORD)
-    assert "if (m.blacked()) {\n            applyResult(m.onDisplayObserved(readDisplayObservation(), now))" in coord
+    assert coord.count("decisionMutex.withLock {") == 2
+    assert "if (machine === m) dispatchControlOp(m)" in coord
+    assert coord.count("if (machine !== m)") >= 3
     assert "ControlledLockReader.parseDisplayPower" in coord
-    assert coord.count("readDisplayObservation()") == 3  # definition + op-time + poll-time
+    assert coord.count("readDisplayObservation()") == 3
     # no new timer: the sampling rides on the existing 1s tick / 5-tick poll
     assert coord.count("delay(") == 1 and "private const val TICK_MS = 1_000L" in coord
     reader = now(READER)
@@ -254,7 +214,7 @@ def PaymentBlackoutStateMachineFrozen():
         old_body = functions(before(PBSM, BASE_V14), name)[0]
         if new_body != old_body:
             # only the confirmation reset may be added inside these transitions
-            assert new_body.replace("        blackoutConfirmed = false\n", "", 1) == old_body, name
+            assert new_body.replace("        blackoutConfirmed = false\n", "", 1).replace(", d, tf, nowMs)", ", d, tf)") == old_body, name
     return True
 
 

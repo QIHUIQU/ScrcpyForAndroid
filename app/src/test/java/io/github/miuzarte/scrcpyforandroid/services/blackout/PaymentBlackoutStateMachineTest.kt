@@ -216,7 +216,7 @@ class PaymentBlackoutStateMachineTest {
 
     /**
      * The setDisplayPower command is asynchronous: the first panel sample after a fire may still
-     * read On (stale). It must NOT clear the latch (all clocks < 5000 ms => no time-based escape).
+     * read On (stale). It must NOT clear the latch inside the 5s command grace.
      */
     @Test
     fun panelOnBeforeBlackoutWasSeenOffNeverResets() {
@@ -278,6 +278,32 @@ class PaymentBlackoutStateMachineTest {
         // the new round's latch is unconfirmed again: an On sample cannot clear it by itself
         assertEquals("noop:display_on_preconfirm_noop", m.onDisplayObserved(DisplayObservation.ON, 5_000).event())
         assertTrue(m.blacked())
+    }
+
+    @Test
+    fun quickExternalWakeWithoutOffSampleDoesNotLatchForever() {
+        val m = PaymentBlackoutStateMachine(TestConfig())
+        m.onControlledLocked(0)
+        m.onControlOp(1_000)
+        // Off -> On occurred between polls. Do not mistake the immediate sample for a wake,
+        // but a fresh ON after the command grace must recover even without an OFF sample.
+        assertEquals("noop:display_on_preconfirm_noop", m.onDisplayObserved(DisplayObservation.ON, 1_001).event())
+        assertEquals("noop:display_on_preconfirm_noop", m.onDisplayObserved(DisplayObservation.ON, 5_999).event())
+        assertEquals("rewake_display_on", m.onDisplayObserved(DisplayObservation.ON, 6_000).event())
+        assertEquals("fire", m.onControlOp(6_001).event())
+        // The next round gets its own grace, not the previous round's elapsed time.
+        assertEquals("noop:display_on_preconfirm_noop", m.onDisplayObserved(DisplayObservation.ON, 6_002).event())
+        assertEquals(2, m.fireCount())
+    }
+
+    @Test
+    fun unknownPanelDoesNotUseGraceToResetLatch() {
+        val m = PaymentBlackoutStateMachine(TestConfig())
+        m.onControlledLocked(0)
+        m.onControlOp(1_000)
+        assertEquals("noop:display_unknown_noop", m.onDisplayObserved(DisplayObservation.UNKNOWN, 60_000).event())
+        assertTrue(m.blacked())
+        assertEquals("noop:op_blacked_noop", m.onControlOp(60_001).event())
     }
 
     /** v8 kept: the countdown is a commitment, a rewake observation inside PENDING must not cancel it. */
