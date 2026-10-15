@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Round16 source invariants: crash-recovery auto-relaunch via an AccessibilityService.
+"""HISTORICAL SNAPSHOT (superseded by scripts/verify_round19_scope.py).
+
+Round16 source invariants: crash-recovery auto-relaunch via an AccessibilityService.
+
+Round19 changed the crash-recovery surface again (cross-process arrival file, `isEnabled` fallback,
+four-stage logging), so this file's change-surface assertion no longer matches the tree. It is kept
+as the Round16 record; the CURRENT gate is `scripts/verify_round19_scope.py` (it carries every
+Round16 protection forward).
 
 Round16 (user-directed) adds an AccessibilityService as the PRIMARY crash-recovery trigger and
 routes every trigger through one shared decision/relaunch path. Only the crash-recovery wiring,
