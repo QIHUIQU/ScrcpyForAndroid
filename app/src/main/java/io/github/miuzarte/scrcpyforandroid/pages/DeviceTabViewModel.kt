@@ -864,7 +864,9 @@ internal class DeviceTabViewModel(
     fun shouldOpenFullscreenCompat(): Boolean = _asBundle.value.fullscreenCompatibilityMode
 
     fun openStreamActivity(context: Context) {
-        context.startActivity(StreamActivity.createIntent(context))
+        runCatching { context.startActivity(StreamActivity.createIntent(context)) }
+            .onSuccess { Log.i(TAG, "fullscreen launch dispatched; foreground arrival not yet confirmed") }
+            .onFailure { Log.w(TAG, "fullscreen launch failed; tap foreground notification to retry", it) }
     }
 
     /**
@@ -884,6 +886,13 @@ internal class DeviceTabViewModel(
         )
         if (session == null) return
         if (!restorable) {
+            // A notification tap after reconnect must still open fullscreen when auto-jump is off.
+            // Reuse the existing request channel; never reconnect an already active session.
+            if (scrcpy.isStarted() && _asBundle.value.crashRecoveryEnabled &&
+                !prefs.getBoolean(RecoveryPrefs.TASK_REMOVED, false)
+            ) {
+                _fullscreenRequests.trySend(Unit)
+            }
             Log.i(
                 TAG,
                 "crash recovery: skipped (enabled=${_asBundle.value.crashRecoveryEnabled} " +

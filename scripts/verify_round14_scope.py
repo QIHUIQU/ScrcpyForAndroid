@@ -134,6 +134,27 @@ def check():
     assert "control channel unavailable" in page
     print("PASS: scale-lock toggle added to the scale panel (same source, slider/reset greyed); Settings key retained")
 
+    # Crash recovery must record only active targets and reuse the existing connect/start/UI chain.
+    recovery = now(JAVA + "services/keepalive/ProcessKeepAliveService.kt")
+    vm = now(JAVA + "pages/DeviceTabViewModel.kt")
+    main = now(JAVA + "MainActivity.kt")
+    facade = now(JAVA + "NativeCoreFacade.kt")
+    assert 'if (!p.getBoolean(RecoveryPrefs.ACTIVE, false) || p.getBoolean(RecoveryPrefs.TASK_REMOVED, false)) return null' in recovery
+    assert 'if (port !in 1..65535) return null' in recovery
+    assert recovery.count('.putExtra(EXTRA_RECOVER_SESSION, true)') == 2
+    assert 'recovery MainActivity arrival not observed (possibly BAL); tap foreground notification' in recovery
+    assert 'override fun onNewIntent(intent: Intent)' in main
+    assert 'recoveryIntent.removeExtra(ProcessKeepAliveService.EXTRA_RECOVER_SESSION)' in main
+    assert 'RecoveryIntentPolicy.requests.collect' in vm
+    restore = functions(vm, 'restoreActiveSession')[0]
+    assert restore.index('connectWithTimeout(') < restore.index('handleAdbConnected(') < restore.index('startScrcpySession(')
+    assert 'startScrcpySession(openFullscreen = true, scrcpyProfileId = session.profileId)' in restore
+    assert 'fullscreen launch failed; tap foreground notification to retry' in vm
+    stopped = functions(facade, 'onScrcpySessionStopped')[0]
+    assert stopped.index('if (!isRestarting)') < stopped.index('RecoveryIntent.clear(')
+    assert 'RecoveryIntent.clear(this)' in recovery and 'recent.size >= 3' in recovery
+    print('PASS: active target recovery and notification fallback reuse existing session/fullscreen entry; swipe/cap/BAL guards retained')
+
     scrcpy = JAVA + "scrcpy/Scrcpy.kt"
     for name in ("injectTouch", "injectScroll", "writePosition", "encodeUnsignedFixedPoint16", "encodeSignedFixedPoint16"):
         assert functions(before(scrcpy), name) == functions(now(scrcpy), name), name
