@@ -1023,7 +1023,7 @@ internal class DeviceTabViewModel(
     }
 
     suspend fun onDiscoverPairingTarget(): Pair<String, Int>? {
-        return adbCoordinator.discoverPairingService(includeLanDevices = _asBundle.value.adbMdnsLanDiscovery)
+        return adbCoordinator.discoverPairingService(includeLanDevices = true)
     }
 
     private val _qrPairingState = MutableStateFlow(QrPairingUiState())
@@ -1250,7 +1250,7 @@ internal class DeviceTabViewModel(
                 discoverConnectService = {
                     adbCoordinator.discoverConnectService(
                         ADB_AUTO_RECONNECT_DISCOVER_TIMEOUT_MS,
-                        _asBundle.value.adbMdnsLanDiscovery,
+                        true,
                     )
                 },
                 onMdnsPortChanged = { host, oldPort, newPort ->

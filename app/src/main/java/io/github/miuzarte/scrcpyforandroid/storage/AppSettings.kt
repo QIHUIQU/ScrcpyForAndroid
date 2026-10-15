@@ -321,11 +321,6 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
             booleanPreferencesKey("adb_auto_reconnect_paired_device"),
             true,
         )
-        val ADB_MDNS_LAN_DISCOVERY = Pair(
-            // 没必要加开关, 保持启用
-            booleanPreferencesKey("adb_mdns_lan_discovery"),
-            true,
-        )
         val ADB_AUTO_LOAD_APP_LIST_ON_CONNECT = Pair(
             booleanPreferencesKey("adb_auto_load_app_list_on_connect"),
             false,
@@ -446,7 +441,6 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         val adbKeyName: String,
         val adbPairingAutoDiscoverOnDialogOpen: Boolean,
         val adbAutoReconnectPairedDevice: Boolean,
-        val adbMdnsLanDiscovery: Boolean,
         val adbAutoLoadAppListOnConnect: Boolean,
         val adbFlowControlWindow: Int,
 
@@ -528,7 +522,6 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         bundleField(ADB_KEY_NAME) { it.adbKeyName },
         bundleField(ADB_PAIRING_AUTO_DISCOVER_ON_DIALOG_OPEN) { it.adbPairingAutoDiscoverOnDialogOpen },
         bundleField(ADB_AUTO_RECONNECT_PAIRED_DEVICE) { it.adbAutoReconnectPairedDevice },
-        bundleField(ADB_MDNS_LAN_DISCOVERY) { it.adbMdnsLanDiscovery },
         bundleField(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT) { it.adbAutoLoadAppListOnConnect },
         bundleField(ADB_FLOW_CONTROL_WINDOW) { it.adbFlowControlWindow },
 
@@ -615,7 +608,6 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         adbPairingAutoDiscoverOnDialogOpen =
             preferences.read(ADB_PAIRING_AUTO_DISCOVER_ON_DIALOG_OPEN),
         adbAutoReconnectPairedDevice = preferences.read(ADB_AUTO_RECONNECT_PAIRED_DEVICE),
-        adbMdnsLanDiscovery = preferences.read(ADB_MDNS_LAN_DISCOVERY),
         adbAutoLoadAppListOnConnect = preferences.read(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT),
         adbFlowControlWindow = preferences.read(ADB_FLOW_CONTROL_WINDOW),
 
