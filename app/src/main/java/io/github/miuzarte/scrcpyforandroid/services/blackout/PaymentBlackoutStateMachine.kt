@@ -21,6 +21,11 @@ package io.github.miuzarte.scrcpyforandroid.services.blackout
  * the user's own remote usage — see flow/踩坑记录.md 2026-10-14); one blackout per round
  * (blacked gate); config is re-read on every decision; clock is injected via nowMs (pure
  * logic, JVM-testable).
+ *
+ * v15 boundary: the [blacked] gate is also cleared by the controlled device's REAL panel power
+ * (see [onDisplayObserved]) — a lock-state observation alone left it stuck whenever the user used
+ * the phone directly and left it unlocked (the payment flow), silently killing every later
+ * blackout for the rest of the session.
  */
 class PaymentBlackoutStateMachine(config: ConfigSource?) {
 
@@ -29,6 +34,9 @@ class PaymentBlackoutStateMachine(config: ConfigSource?) {
     enum class Action { APPLY_BLACKOUT }
 
     enum class LockObservation { UNKNOWN, LOCKED, UNLOCKED }
+
+    /** Controlled device's real panel power (SurfaceFlinger `powerMode`), see [onDisplayObserved]. */
+    enum class DisplayObservation { UNKNOWN, ON, OFF }
 
     /** Config read-back source (host-injected; re-read on every decision, never cached). */
     interface ConfigSource {
@@ -61,6 +69,7 @@ class PaymentBlackoutStateMachine(config: ConfigSource?) {
 
     private var state: State = State.IDLE
     private var blacked = false
+    private var blackoutConfirmed = false
     private var pendingFireAtMs = 0L
     private var fallbackStartMs = 0L
     private var fallbackArmed = false
@@ -90,6 +99,7 @@ class PaymentBlackoutStateMachine(config: ConfigSource?) {
         }
         state = State.ARMED
         blacked = false
+        blackoutConfirmed = false
         lastObs = LockObservation.LOCKED
         fallbackArmed = true
         fallbackStartMs = nowMs
@@ -114,11 +124,57 @@ class PaymentBlackoutStateMachine(config: ConfigSource?) {
         }
         state = State.ARMED
         blacked = false
+        blackoutConfirmed = false
         lastObs = LockObservation.UNLOCKED
         pendingFireAtMs = 0L
         fallbackArmed = true
         fallbackStartMs = nowMs
         return result(EMPTY, "rewake", tf)
+    }
+
+    /**
+     * DISPLAY: the controlled device's real panel power (SurfaceFlinger `powerMode` — the only
+     * authoritative blackout signal; framework screen state / `dumpsys display` / screenshots do
+     * NOT change on a blackout, see flow/踩坑记录.md 2026-10-14/v10).
+     *
+     * v15: the [blacked] latch — "one blackout per round" — used to be clearable only through a
+     * lock-state transition observation, so it stayed stuck for the rest of the session whenever
+     * the user used the phone directly and left it unlocked (the payment flow): every later
+     * control op was `op_blacked_noop` and the feature silently died (see flow/round15-*.md).
+     * The physical signal is the panel itself:
+     *   Off while blacked            -> the blackout is confirmed in effect;
+     *   On  while blacked+confirmed  -> the user brought the screen back (external use) = the round
+     *                                   is over: clear the latch so the next op may black out again;
+     *   On  before any Off was seen  -> the pre-command/stale sample of the round that just fired
+     *                                   (the setDisplayPower command is still in flight): never a
+     *                                   reset, otherwise every op would re-fire on a stale sample;
+     *   UNKNOWN                      -> never acted upon (never reset on a doubtful dump).
+     */
+    @Synchronized fun onDisplayObserved(obs: DisplayObservation, nowMs: Long): Result {
+        val tf = fallbackThresholdSec()
+        return when {
+            obs == DisplayObservation.UNKNOWN -> noop("display_unknown_noop", tf)
+            !blacked -> noop(
+                if (obs == DisplayObservation.ON) "display_on_noop" else "display_off_noop",
+                tf,
+            )
+            obs == DisplayObservation.OFF -> {
+                if (blackoutConfirmed) {
+                    noop("blackout_off_still", tf)
+                } else {
+                    blackoutConfirmed = true
+                    result(EMPTY, "blackout_confirmed", tf)
+                }
+            }
+            !blackoutConfirmed -> noop("display_on_preconfirm_noop", tf)
+            else -> {
+                blacked = false
+                blackoutConfirmed = false
+                fallbackArmed = true
+                fallbackStartMs = nowMs
+                result(EMPTY, "rewake_display_on", tf)
+            }
+        }
     }
 
     /** CONTROL_OP: a control-side user operation ("temporary use finished"). ARMED -> complete (fire when D==0); others -> no-op. */
@@ -173,6 +229,7 @@ class PaymentBlackoutStateMachine(config: ConfigSource?) {
     @Synchronized fun onSessionLost(): Result {
         state = State.IDLE
         blacked = false
+        blackoutConfirmed = false
         fallbackArmed = false
         pendingFireAtMs = 0L
         return result(EMPTY, "session_lost", fallbackThresholdSec())
@@ -183,6 +240,7 @@ class PaymentBlackoutStateMachine(config: ConfigSource?) {
     private fun applyBlackout(event: String, d: Int, tf: Int): Result {
         state = State.ARMED
         blacked = true
+        blackoutConfirmed = false
         pendingFireAtMs = 0L
         fireCount++
         return Result(listOf(Action.APPLY_BLACKOUT), event, state, blacked, d, tf)

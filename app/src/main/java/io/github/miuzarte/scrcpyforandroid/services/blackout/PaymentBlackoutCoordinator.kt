@@ -99,6 +99,12 @@ object PaymentBlackoutCoordinator {
 
     private suspend fun dispatchControlOp(m: PaymentBlackoutStateMachine) {
         val now = SystemClock.elapsedRealtime()
+        // A latched blackout may already be over: the user used the phone directly and brought the
+        // panel back. Sample the real panel power before the op so the "returned to the control
+        // side" operation can black out again right away instead of waiting for the next poll.
+        if (m.blacked()) {
+            applyResult(m.onDisplayObserved(readDisplayObservation(), now))
+        }
         if (m.state() == PaymentBlackoutStateMachine.State.ARMED &&
             lastDispatched == PaymentBlackoutStateMachine.LockObservation.LOCKED
         ) {
@@ -130,6 +136,11 @@ object PaymentBlackoutCoordinator {
                         applyResult(m.onControlledRewake(now))
                     }
                 }
+                // While a blackout is latched, watch the real panel power (same poll, no new timer):
+                // an external wake must clear the latch, otherwise the blackout never comes back.
+                if (m.blacked()) {
+                    applyResult(m.onDisplayObserved(readDisplayObservation(), now))
+                }
             }
             tick++
             delay(TICK_MS)
@@ -146,9 +157,21 @@ object PaymentBlackoutCoordinator {
         }
     }
 
+    private suspend fun readDisplayObservation(): PaymentBlackoutStateMachine.DisplayObservation {
+        return try {
+            ControlledLockReader.parseDisplayPower(
+                NativeAdbService.shell(ControlledLockReader.DISPLAY_POWER_CMD),
+            )
+        } catch (c: CancellationException) {
+            throw c
+        } catch (t: Throwable) {
+            PaymentBlackoutStateMachine.DisplayObservation.UNKNOWN
+        }
+    }
+
     private suspend fun applyResult(result: PaymentBlackoutStateMachine.Result) {
         val event = result.event()
-        if (event != "noop:tick_noop" && event != "noop:pending_wait") {
+        if (event != "noop:tick_noop" && event != "noop:pending_wait" && event != "noop:blackout_off_still") {
             Log.i(TAG, PaymentBlackoutConfig.LOG_PREFIX + result.describe())
         }
         if (result.applied()) {
