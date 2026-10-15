@@ -7,6 +7,12 @@ import kotlinx.coroutines.*
 import java.io.Closeable
 import java.util.concurrent.Executors
 
+/**
+ * 连续探测失败达到该次数才判定连接已断 (单次失败多由网络抖动引起; 3 次 × 3s 间隔
+ * ⇒ 检出延迟约 +6s)。
+ */
+internal const val KEEP_ALIVE_FAILURE_THRESHOLD = 3
+
 internal class DeviceAdbBackgroundRunner: Closeable {
     private val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "device-adb-monitor").apply { isDaemon = true }
@@ -26,6 +32,7 @@ internal class DeviceAdbBackgroundRunner: Closeable {
         val target = sessionState().currentTarget ?: return@withContext
         val host = target.host
         val port = target.port
+        var consecutiveFailures = 0
 
         while (sessionState().isConnected && sessionState().currentTarget == target) {
             if (!isForeground()) {
@@ -37,11 +44,18 @@ internal class DeviceAdbBackgroundRunner: Closeable {
             val alive = runCatching {
                 keepAliveCheck(host, port)
             }.getOrElse { false }
-            if (alive) continue
+            if (alive) {
+                consecutiveFailures = 0
+                continue
+            }
+            // 单次探测失败多由网络抖动引起: 连续 N 次失败才判定连接已断, 避免误拆整条连接
+            consecutiveFailures++
+            if (consecutiveFailures < KEEP_ALIVE_FAILURE_THRESHOLD) continue
             if (!shouldAutoReconnect()) break
 
             try {
                 reconnect(host, port)
+                consecutiveFailures = 0
                 withContext(Dispatchers.Main) {
                     onReconnectSuccess(host, port)
                 }
