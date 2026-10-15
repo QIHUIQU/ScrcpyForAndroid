@@ -5,7 +5,7 @@
 > （`:a11y` 写、主进程清）⇒ 误报 `recovery MainActivity arrival not observed` 多发降级通知；已改为普通文件 `files/recovery_arrival`。
 > 同时真机发现**重建出来的 `:a11y` 进程里 `isEnabled` 会误判无障碍未启用**（管理器列表为空）导致已授权恢复错误降级，已三级回退。
 > 用户「恢复后停在设备列表」在本轮**未能独立复现**（v16 直灌与崩溃路径都能到全屏页）；第19轮补齐四级日志
-> `dispatch / Activity 到达 / 会话建立 / 画面可见`。**权威结论与证据以 `flow/round19-crash-recovery.md` 为准**，本文件保留为 v16 历史。
+> `dispatch / Activity 到达 / 会话建立 / 画面可见`。**最终可见判据（会话+路由RESUMED+窗口焦点）、7d08d716候选与最终包真机矩阵以 `flow/round19-final-review.md` 为准；本轮过程见 `flow/round19-crash-recovery.md`**，本文件保留为 v16 历史。
 
 日期：2026-10-14 PDT；设备日志 2026-10-15 CST。分支 `feat/eink-port-20261013`。
 设备：控制端 PAPER_7 `10.0.0.237:5555`；被控端 vivo V2436A `10.0.0.232:7777`（LAN，profile `6835e614-78a9-4115-8a04-fb2a08c72c5c`）。

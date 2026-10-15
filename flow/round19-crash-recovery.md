@@ -1,5 +1,7 @@
 # 第19轮：崩溃恢复「直达远控画面」+ 无障碍手势关闭弹窗探针（v16.2）
 
+> 最终权威收口：`flow/round19-final-review.md`。最终构建源b9dcad7，候选SHA256 `7d08d7167ccf61328bc94c6e28fdb1a8575eb598e22203c1525327bdfa897379`，双clean各22套件125例；原文§3/§8的47f122f4/dac1976f为历史首稿，不冒充最终包。最终矩阵已在7d08d716上重新跑完，证据final-review/device。
+
 日期：2026-10-15 PDT（设备时间 CST）。分支 `feat/eink-port-20261013`。接手 HEAD `d385b18`（其上的 `84792a3`/`d385b18` 为已提交的流程/中断登记文档）。
 设备：控制端 PAPER_7 `10.0.0.237:5555`（Android 14）；被控端 vivo V2436A `10.0.0.232:7777`（Android 16，序列号 `10AF6D0441003F5`）。
 交付根：`/Users/qifam/Documents/scrcpy-port-artifacts`。证据根：`findings-20261015-round19/`。
@@ -59,7 +61,7 @@
   `openFullscreenControl()`（本机 `fullscreen_compatibility_mode=true` ⇒ `rootNavigator.push(RootScreen.FullscreenControl)`）。
 - 本机 A/B：**修复前**的 `35c2f08d…` 在「直灌恢复意图」与「崩溃后恢复」两条路径上，会话恢复后**都进到了全屏远控页**
   （界面层证据：`uiautomator` 文本 `分辨率：908x1024 / 帧率 / 触点`，即 `FullscreenControlPage` 调试层）。
-- 因此**无法**把用户的「停在设备列表」归因为全屏入口本身的代码缺陷；最可能是异步恢复约 10 秒窗口内的**观感**（用户看到通知与设备列表时，会话尚未建立）。
+- 用户明确观察到会话恢复后仍停设备列表；本轮未复现其独立根因。不能把“约10秒等待导致观感”当作已证实解释，也不能因成功样本否定用户报告。
 - 本轮按合同要求**补齐判据与可审计日志**（不改既有导航、不改 UnlockJump）：新增四级日志
   `dispatch`（CrashRecovery）→ `Activity 到达`（MainActivity）→ `会话建立`（DeviceTabViewModel `session established`）→
   `画面可见`（`DeviceTabScreen: fullscreen route requested` + `FullscreenRoute/StreamActivity page visible`）。
@@ -95,7 +97,7 @@
 ## 4b. 任务 C（原项目包体核实，由另一并行子代理负责，本执行线未重复扫包）
 
 - 报告：`/Users/qifam/Documents/scrcpy-port-artifacts/findings-20261015-round19/package-audit/REPORT.md`（含 `manifest-inventory.json/csv`、`raw/`、`scan_apks.py`）。
-- 结论（引用，未由本线复验）：**按包体实证，原 EasyControl 全家（`top.eiyooooo.easycontrol.app*`，33 个 APK 中 27 个）没有任何包声明/实现无障碍服务**——manifest 0 处 `BIND_ACCESSIBILITY_SERVICE`/accessibilityservice intent-filter，DEX 唯一痕迹是恒返回 false 的占位方法；**真正含真实无障碍服务的是另一个项目**：本移植基线 `io.github.miuzarte.scrcpyforandroid` 0.7.0（其无障碍为 round16 自研加入）。即用户「原 EasyControl 最新候选包装了无障碍」的说法，就包体而言只对 scrcpy 移植包成立、对 EasyControl 包不成立。
+- 结论（已由主会话复核典型manifest）：33条文件路径去重20个包体；原易控主包/rlcdB的27条路径对应15个包体，均未发现可由系统绑定的无障碍服务声明；含已装包与最新候选取样，官方release另已核验。含无障碍的scrcpy移植包是另一包名，仅用于对照。该证据不能证明用户混淆包名，也不能排除未取得的外盘归档版本。详见package-audit/REPORT.md。
 - 本线按合同**未重复扫 APK**；如需以该报告作最终口径，请主代理汇总时核对其原始证据。
 
 ## 5. 改动面（只碰崩溃恢复接线 + 恢复后导航日志 + 设置无关文件；未新增依赖/第二套机制）
@@ -122,7 +124,7 @@
 - 跨 OEM 行为、`:a11y` 被系统回收后重武装的真机时序、会话代际/调度竞态未测。
 - 冲突/未决：无（授权边界按用户原话保守执行；未授权场景只读）。
 
-## 8. 实际结果锚点
+## 8. 历史首稿结果锚点（dac1976f；最终锚点以final-review报告为准）
 
 - 提交（分支 `feat/eink-port-20261013`）：
   - `fb9065d` `fix(recovery): reach the fullscreen page and signal arrival across processes`
