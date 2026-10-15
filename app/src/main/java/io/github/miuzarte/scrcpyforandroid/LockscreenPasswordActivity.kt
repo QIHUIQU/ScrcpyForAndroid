@@ -641,7 +641,8 @@ private fun PasswordEditorSheet(
 
     val focusManager = LocalFocusManager.current
     var nameBuffer by rememberSaveable(mode, show, initialName) { mutableStateOf(initialName) }
-    var passwordBuffer by rememberSaveable(mode, show) { mutableStateOf("") }
+    // 密码明文不进 Activity saved state (避免被系统 dump 到 Bundle)
+    var passwordBuffer by remember(mode, show) { mutableStateOf("") }
 
     OverlayBottomSheet(
         show = show,
