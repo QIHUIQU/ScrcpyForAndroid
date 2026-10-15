@@ -19,6 +19,10 @@ import io.github.miuzarte.scrcpyforandroid.nativecore.UsbDeviceInfo
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.*
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger.logEvent
+import io.github.miuzarte.scrcpyforandroid.services.keepalive.RecoveryIntent
+import io.github.miuzarte.scrcpyforandroid.services.keepalive.RecoveryIntentPolicy
+import io.github.miuzarte.scrcpyforandroid.services.keepalive.RecoveryPrefs
+import io.github.miuzarte.scrcpyforandroid.services.keepalive.RecoverySession
 import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
 import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
@@ -309,6 +313,13 @@ internal class DeviceTabViewModel(
                 if (serialized != _qdBundle.value.quickDevicesList) {
                     _qdBundle.update { it.copy(quickDevicesList = serialized) }
                 }
+            }
+        }
+
+        // 崩溃自愈: 仅在本次启动携带恢复意图时, 复用既有连接/启动路径重连回全屏
+        viewModelScope.launch {
+            RecoveryIntentPolicy.requests.collect { requested ->
+                if (requested) autoRestoreActiveSessionIfRequested()
             }
         }
     }
@@ -771,8 +782,9 @@ internal class DeviceTabViewModel(
     suspend fun startScrcpySession(
         openFullscreen: Boolean = false,
         startAppOverride: String? = null,
+        scrcpyProfileId: String = connectedScrcpyProfileId.value,
     ) {
-        val activeBundle = resolveScrcpyBundle(connectedScrcpyProfileId.value)
+        val activeBundle = resolveScrcpyBundle(scrcpyProfileId)
         val options = scrcpyOptions.toClientOptions(activeBundle).fix()
         val resolvedOptions = startAppOverride
             ?.takeIf { it.isNotBlank() }
@@ -853,6 +865,81 @@ internal class DeviceTabViewModel(
 
     fun openStreamActivity(context: Context) {
         context.startActivity(StreamActivity.createIntent(context))
+    }
+
+    /**
+     * 崩溃自愈入口: 只有本次启动携带恢复意图 (保活服务异常退出判据拉起 / 保活通知点击) 才动作;
+     * 普通启动 `RecoveryIntentPolicy` 未武装 ⇒ 直接返回, 不误连。
+     * 会话已在运行、开关关闭、被划掉、无持久目标同样跳过。意图单次消费。
+     */
+    private suspend fun autoRestoreActiveSessionIfRequested() {
+        val context = AppRuntime.context
+        val prefs = context.getSharedPreferences(RecoveryPrefs.FILE, Context.MODE_PRIVATE)
+        val session = RecoveryIntent.load(context)
+        val restorable = RecoveryIntentPolicy.consumeIfRestorable(
+            sessionActive = scrcpy.isStarted(),
+            crashRecoveryEnabled = _asBundle.value.crashRecoveryEnabled,
+            taskRemoved = prefs.getBoolean(RecoveryPrefs.TASK_REMOVED, false),
+            targetRestorable = session != null,
+        )
+        if (session == null) return
+        if (!restorable) {
+            Log.i(
+                TAG,
+                "crash recovery: skipped (enabled=${_asBundle.value.crashRecoveryEnabled} " +
+                    "taskRemoved=${prefs.getBoolean(RecoveryPrefs.TASK_REMOVED, false)} " +
+                    "sessionActive=${scrcpy.isStarted()})",
+            )
+            return
+        }
+        Log.i(
+            TAG,
+            "crash recovery: reconnecting ${session.target.host}:${session.target.port} " +
+                "profile=${session.profileId}",
+        )
+        restoreActiveSession(session)
+    }
+
+    /**
+     * 复用既有连接/启动路径把崩溃前的活跃会话目标拉回: ADB 重连 → handleAdbConnected →
+     * startScrcpySession(openFullscreen) ⇒ 既有 fullscreenRequests → openStreamActivity 回全屏。
+     * 失败只降级记录/提示, 不跳转、不报成功。
+     */
+    private fun restoreActiveSession(session: RecoverySession) {
+        val target = session.target
+        if (target.connectionType == DeviceConnectionType.USB) {
+            // 冷启动没有 USB 设备句柄, 无法复用隧道: 降级, 不在主界面误连
+            Log.w(TAG, "crash recovery: USB target skipped (no device handle on cold start)")
+            return
+        }
+        runAdbConnect(
+            label = EventLogMessage.Resource(R.string.vm_connect_adb),
+            onStarted = { _activeDeviceActionId.value = target.toString() },
+            onFinished = { _activeDeviceActionId.value = null },
+        ) {
+            try {
+                disconnectCurrentTargetBeforeConnecting(target.host, target.port)
+                connectWithTimeout(target.host, target.port)
+                handleAdbConnected(
+                    host = target.host,
+                    port = target.port,
+                    autoStartScrcpy = false,
+                    scrcpyProfileId = session.profileId,
+                    connectionType = DeviceConnectionType.LAN,
+                )
+                startScrcpySession(openFullscreen = true, scrcpyProfileId = session.profileId)
+                connectionController.updateQuickConnected(false)
+                // 只有 start() 成功返回才算恢复成功
+                Log.i(TAG, "crash recovery: session start succeeded for ${target.host}:${target.port}")
+            } catch (cancel: CancellationException) {
+                throw cancel
+            } catch (error: Exception) {
+                connectionController.markConnectionFailed(error)
+                logEvent(R.string.vm_adb_connection_failed, level = Log.ERROR, error = error)
+                Log.w(TAG, "crash recovery: reconnect failed, staying on main screen", error)
+                AppRuntime.snackbar(R.string.vm_adb_connection_failed)
+            }
+        }
     }
 
     suspend fun refreshApps() {

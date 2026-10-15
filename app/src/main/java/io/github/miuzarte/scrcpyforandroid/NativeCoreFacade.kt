@@ -13,6 +13,7 @@ import io.github.miuzarte.scrcpyforandroid.scrcpy.VideoScaleSettings
 import io.github.miuzarte.scrcpyforandroid.services.blackout.PaymentBlackoutCoordinator
 import io.github.miuzarte.scrcpyforandroid.services.lockwake.ControlledLockWakeController
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveService
+import io.github.miuzarte.scrcpyforandroid.services.keepalive.RecoveryIntent
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
@@ -304,6 +305,10 @@ object NativeCoreFacade {
         renderer.setGamma(Storage.appSettings.bundleState.value.gammaValue)
         setVideoScale(Storage.appSettings.bundleState.value.videoScale)
         PaymentBlackoutCoordinator.onSessionStarted()
+        // 崩溃自愈: 持久记录本次活跃会话目标 (进程若崩溃, 恢复时复用既有连接/启动路径重连)
+        AppRuntime.currentConnectionTarget?.let { target ->
+            RecoveryIntent.record(AppRuntime.context, target, AppRuntime.currentConnectionProfileId.value)
+        }
         if (Storage.appSettings.bundleState.value.processKeepAliveEnabled) {
             runCatching { ProcessKeepAliveService.start(AppRuntime.context) }
                 .onFailure { Log.w(TAG, "keep-alive FGS start failed", it) }
@@ -372,7 +377,12 @@ object NativeCoreFacade {
      */
     suspend fun onScrcpySessionStopped() = sessionLifecycleMutex.withLock {
         PaymentBlackoutCoordinator.onSessionStopped()
-        runCatching { ProcessKeepAliveService.stop(AppRuntime.context) }
+        // 内部重连 (stop→start, isRestarting=true) 是同一会话的延续: 不清恢复目标、不停保活;
+        // 只有用户/远端真正结束会话才清目标 (否则重连窗口内崩溃会丢掉恢复目标)
+        if (!isRestarting) {
+            RecoveryIntent.clear(AppRuntime.context)
+            runCatching { ProcessKeepAliveService.stop(AppRuntime.context) }
+        }
         ControlledLockWakeController.resetEpisode("session_stopped")
         controller.releaseAll()
         scrcpyRef = null

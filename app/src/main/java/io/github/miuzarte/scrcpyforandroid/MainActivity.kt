@@ -1,6 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.graphics.Rect
@@ -21,6 +22,8 @@ import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.AppScreenOn
 import io.github.miuzarte.scrcpyforandroid.services.UnlockJumpController
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveScheduler
+import io.github.miuzarte.scrcpyforandroid.services.keepalive.ProcessKeepAliveService
+import io.github.miuzarte.scrcpyforandroid.services.keepalive.RecoveryIntentPolicy
 import io.github.miuzarte.scrcpyforandroid.services.keepalive.RecoveryPrefs
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +38,7 @@ class MainActivity: LocalizedActivity() {
 
         // no logEvent before context init
         AppRuntime.init(applicationContext)
+        handleRecoveryIntent(intent)
         // 用户手动打开 App / 点保活通知 = 重新允许崩溃恢复（主动划掉后不再自动拉起）
         getSharedPreferences(RecoveryPrefs.FILE, MODE_PRIVATE).edit()
             .putBoolean(RecoveryPrefs.TASK_REMOVED, false).apply()
@@ -66,6 +70,21 @@ class MainActivity: LocalizedActivity() {
         setContent {
             MainScreen()
         }
+    }
+
+    private fun handleRecoveryIntent(recoveryIntent: Intent?) {
+        if (recoveryIntent?.getBooleanExtra(ProcessKeepAliveService.EXTRA_RECOVER_SESSION, false) != true) return
+        recoveryIntent.removeExtra(ProcessKeepAliveService.EXTRA_RECOVER_SESSION)
+        getSharedPreferences(RecoveryPrefs.FILE, MODE_PRIVATE).edit()
+            .putBoolean(RecoveryPrefs.LAUNCH_PENDING, false).apply()
+        RecoveryIntentPolicy.arm()
+        Log.i("MainActivity", "recovery launch arrived; restore intent armed")
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleRecoveryIntent(intent)
     }
 
     override fun onResume() {
