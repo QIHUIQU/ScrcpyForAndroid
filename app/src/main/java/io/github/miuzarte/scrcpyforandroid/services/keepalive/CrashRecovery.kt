@@ -37,6 +37,10 @@ internal object CrashRecoveryPolicy {
     fun shouldConsider(active: Boolean, taskRemoved: Boolean, recoveryEnabled: Boolean): Boolean =
         active && !taskRemoved && recoveryEnabled
 
+    /** Composition alone is not foreground visibility: covered routes can remain composed. */
+    fun remotePageVisible(sessionReady: Boolean, routeResumed: Boolean, windowFocused: Boolean): Boolean =
+        sessionReady && routeResumed && windowFocused
+
     /**
      * A relaunch is due only for a fresh, not-yet-handled abnormal exit that is still under the
      * attempt cap. Time alone never relaunches; a handled exit never repeats.
@@ -128,7 +132,7 @@ internal data class RecoveryGate(
  * 跨进程"已到达"信号（round19 真机缺陷修复）。
  *
  * 原实现把 `LAUNCH_PENDING` 写在 SharedPreferences 里：派发发生在 `:a11y` 进程、到达消费在**主进程**，
- * 而 SharedPreferences 不支持跨进程（每个进程各持一份内存缓存）。真机实测（2026-10-15 16:08 PDT）：
+ * 而 SharedPreferences 不支持跨进程（每个进程各持一份内存缓存）。真机实测（2026-10-15 16:08 CST）：
  * 主进程 16:08:54 已 `recovery launch arrived`，但 `:a11y` 仍在 16:08:55 读到旧的 pending ⇒
  * 误判 `arrival not observed` 并多发一条降级通知。改为普通文件（与 [RecoveryGate] 同一跨进程原理）：
  * 任意进程每次读盘都是最新值。纯文本格式 `P<dispatchToken>`=已派发未到达，`A<ms>`=已到达。
@@ -152,11 +156,21 @@ internal object RecoveryArrival {
         runCatching { File(context.filesDir, FILE).writeText("A0") }
             .onFailure { Log.w(TAG, "arrival clear failed", it) }
 
-    fun isPending(context: Context, token: Long): Boolean =
-        arrivalPending(runCatching { File(context.filesDir, FILE).readText() }.getOrNull(), token)
+    enum class Observation { NOT_OBSERVED, ARRIVED, SUPERSEDED }
 
-    /** 纯判据（JVM-testable）：文件内容仍是本次派发令牌 ⇒ 尚未观察到到达。 */
-    fun arrivalPending(content: String?, token: Long): Boolean = content == "P$token"
+    fun observe(context: Context, token: Long): Observation =
+        observation(runCatching { File(context.filesDir, FILE).readText() }.getOrNull(), token)
+
+    /** 缺失/损坏不能冒充到达；清账和更新的派发不再由旧回调发通知。 */
+    fun observation(content: String?, token: Long): Observation {
+        val timestamp = content?.drop(1)?.toLongOrNull()
+        return when {
+            content == "A0" -> Observation.SUPERSEDED
+            content?.startsWith("A") == true && timestamp != null && timestamp >= token -> Observation.ARRIVED
+            content?.startsWith("P") == true && timestamp != null && timestamp > token -> Observation.SUPERSEDED
+            else -> Observation.NOT_OBSERVED
+        }
+    }
 }
 
 /**
@@ -332,12 +346,14 @@ internal object CrashRecovery {
         }
         Log.i(TAG, "recovery launch dispatched (source=$source); awaiting MainActivity arrival")
         Handler(context.mainLooper).postDelayed({
-            if (RecoveryArrival.isPending(context, token)) {
-                // 仅说明"未观察到到达", 不擅断就是 BAL; 给可点通知兜底。
-                Log.w(TAG, "recovery MainActivity arrival not observed; posting notification fallback")
-                postFallbackNotification(context)
-            } else {
-                Log.i(TAG, "recovery MainActivity arrival observed")
+            when (RecoveryArrival.observe(context, token)) {
+                RecoveryArrival.Observation.NOT_OBSERVED -> {
+                    // 缺失/读失败也只是未观察到，保留真实通知退路，绝不反报成功。
+                    Log.w(TAG, "recovery MainActivity arrival not observed; posting notification fallback")
+                    postFallbackNotification(context)
+                }
+                RecoveryArrival.Observation.ARRIVED -> Log.i(TAG, "recovery MainActivity arrival observed")
+                RecoveryArrival.Observation.SUPERSEDED -> Log.i(TAG, "recovery arrival check superseded or cancelled")
             }
         }, ARRIVAL_CHECK_MS)
         return true

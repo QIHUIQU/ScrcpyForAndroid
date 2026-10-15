@@ -4,6 +4,7 @@ import android.content.pm.ActivityInfo
 import android.util.Log
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -13,6 +14,7 @@ import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
+import io.github.miuzarte.scrcpyforandroid.services.keepalive.CrashRecoveryPolicy
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import io.github.miuzarte.scrcpyforandroid.ui.createThemeController
 import io.github.miuzarte.scrcpyforandroid.widgets.VideoOutputTarget
@@ -89,9 +91,17 @@ fun FullscreenControlRoute(
         }
     }
 
-    // 四级日志第 4 段: 全屏远控页(compat 路由)已合成并显示
-    LaunchedEffect(Unit) {
-        Log.i("FullscreenControlRoute", "fullscreen control page composed (compat route visible)")
+    // 阶段 4：复用两种全屏入口的共同路由，covered composition 不冒充前台画面。
+    val routeState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
+    val remotePageVisible = CrashRecoveryPolicy.remotePageVisible(
+        sessionReady = currentSession != null,
+        routeResumed = routeState == Lifecycle.State.RESUMED,
+        windowFocused = LocalWindowInfo.current.isWindowFocused,
+    )
+    LaunchedEffect(remotePageVisible) {
+        if (remotePageVisible) {
+            Log.i("FullscreenControlRoute", "fullscreen control page visible (sessionReady=true routeResumed=true windowFocused=true)")
+        }
     }
 
     DisposableEffect(activity) {

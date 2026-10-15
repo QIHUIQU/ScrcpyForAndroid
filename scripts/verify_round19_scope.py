@@ -58,7 +58,6 @@ EXPECTED_MAIN_CHANGES = {
     JAVA + "NativeCoreFacade.kt",
     # round19: recovery-navigation logging + arrival/readiness stages (explicitly authorized)
     JAVA + "MainActivity.kt",
-    JAVA + "StreamActivity.kt",
     JAVA + "pages/StreamScreen.kt",
     JAVA + "pages/DeviceTabScreen.kt",
 }
@@ -112,10 +111,11 @@ def check_round19_arrival_and_navigation():
 
     # arrival must be a cross-process plain file, never a SharedPreferences boolean
     assert "internal object RecoveryArrival" in crash
-    assert "fun arrivalPending(content: String?, token: Long)" in crash
+    assert "fun observation(content: String?, token: Long)" in crash
+    assert "else -> Observation.NOT_OBSERVED" in crash  # missing/corrupt files are never success
     assert 'FILE = "recovery_arrival"' in crash
     assert "RecoveryArrival.markPending(context, token)" in crash
-    assert "RecoveryArrival.isPending(context, token)" in crash
+    assert "RecoveryArrival.observe(context, token)" in crash
     assert "RecoveryArrival.markArrived(this)" in main
     assert "RecoveryArrival.clear(context)" in keepalive
     for path in (crash, keepalive, main):
@@ -138,8 +138,13 @@ def check_round19_arrival_and_navigation():
     assert "crash recovery: session established for" in vm            # 3 session established
     assert "fullscreen request dispatched (openFullscreen=" in vm     # -> existing fullscreen route
     assert 'fullscreen route requested (compat=' in now(JAVA + "pages/DeviceTabScreen.kt")
-    assert "fullscreen control page visible (stream activity)" in now(JAVA + "StreamActivity.kt")
-    assert "fullscreen control page composed (compat route visible)" in now(JAVA + "pages/StreamScreen.kt")
+    route = now(JAVA + "pages/StreamScreen.kt")
+    assert "fullscreen control page composed (compat route visible)" not in route
+    assert "fullscreen control page visible (sessionReady=true routeResumed=true windowFocused=true)" in route
+    assert "sessionReady = currentSession != null" in route
+    assert "routeResumed = routeState == Lifecycle.State.RESUMED" in route
+    assert "windowFocused = LocalWindowInfo.current.isWindowFocused" in route
+    assert "if (remotePageVisible)" in route
     # the restore still reuses the existing fullscreen entry (no new navigation invented)
     restore = functions(vm, "restoreActiveSession")[0]
     assert "startScrcpySession(openFullscreen = true" in restore

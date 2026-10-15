@@ -946,7 +946,7 @@ internal class DeviceTabViewModel(
                 connectionController.updateQuickConnected(false)
                 // 四级日志第 3 段: 会话建立 (异步 start() 返回后)
                 Log.i(TAG, "crash recovery: session established for ${target.host}:${target.port}")
-                // 只有 start() 成功返回才算恢复成功
+                // 会话建立只是恢复阶段 3；成功判据还需全屏路由 RESUMED 且窗口有焦点（阶段 4）。
                 Log.i(TAG, "crash recovery: session start succeeded for ${target.host}:${target.port}")
                 // 恢复成功 = 复位本回合尝试计数: 历史额度不能挡下一次正常单次恢复
                 AppRuntime.context.getSharedPreferences(RecoveryPrefs.FILE, Context.MODE_PRIVATE)

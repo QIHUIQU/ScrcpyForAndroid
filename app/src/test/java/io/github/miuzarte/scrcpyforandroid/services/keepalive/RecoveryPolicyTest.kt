@@ -86,20 +86,24 @@ class RecoveryPolicyTest {
         assertFalse(CrashRecoveryPolicy.shouldConsider(active = false, taskRemoved = false, recoveryEnabled = false))
     }
 
-    /**
-     * 跨进程"已到达"判据 (round19): 派发进程与消费进程不同, 用普通文件而非 SharedPreferences。
-     * 内容仍是本次派发令牌 ⇒ 未到达; 换成新值(到达/清账) ⇒ 已到达, 不得再判 not observed。
-     */
+    /** 缺失/损坏不是到达；旧回调不为已清账或更新派发制造通知。 */
     @Test fun recoveryArrivalObservedOnlyWhenMarkerMoves() {
         val token = 1792054933630L
-        // 主进程还没消费 ⇒ 仍是本次派发令牌 ⇒ 未到达 (该报 not observed)
-        assertTrue(RecoveryArrival.arrivalPending("P$token", token))
-        assertFalse(RecoveryArrival.arrivalPending(null, token))
-        // 主进程已消费 ⇒ 写成 A<ms> ⇒ 已到达, 绝不误报
-        assertFalse(RecoveryArrival.arrivalPending("A1792054933721", token))
-        // 会话结束清账 ⇒ A0 ⇒ 不算本次派发未到达
-        assertFalse(RecoveryArrival.arrivalPending("A0", token))
-        // 上一次派发的陈旧令牌不冒充本次 (不同 token 的文件内容不同)
-        assertFalse(RecoveryArrival.arrivalPending("P${token + 1}", token))
+        val pending = RecoveryArrival.Observation.NOT_OBSERVED
+        val arrived = RecoveryArrival.Observation.ARRIVED
+        val superseded = RecoveryArrival.Observation.SUPERSEDED
+        assertEquals(pending, RecoveryArrival.observation("P$token", token))
+        for (content in listOf(null, "", "bad", "Ainvalid", "A${token - 1}")) {
+            assertEquals(pending, RecoveryArrival.observation(content, token))
+        }
+        assertEquals(arrived, RecoveryArrival.observation("A${token + 1}", token))
+        assertEquals(superseded, RecoveryArrival.observation("A0", token))
+        assertEquals(superseded, RecoveryArrival.observation("P${token + 1}", token))
+    }
+
+    @Test fun remotePageNeedsSessionResumedRouteAndFocusedWindow() {
+        for (session in listOf(false, true)) for (resumed in listOf(false, true)) for (focused in listOf(false, true)) {
+            assertEquals(session && resumed && focused, CrashRecoveryPolicy.remotePageVisible(session, resumed, focused))
+        }
     }
 }
