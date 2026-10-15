@@ -6,14 +6,18 @@ import org.junit.Test
 
 class ProcessKeepAliveRulesTest {
     @Test
-    fun intervalRespectsPlatformLowerBound() {
-        assertTrue(ProcessKeepAliveRules.PERIODIC_INTERVAL_MS >= 15L * 60L * 1000L)
-    }
-
-    @Test
     fun serviceDecision() {
         assertTrue(ProcessKeepAliveRules.shouldRunService(enabled = true, sessionActive = true))
         assertFalse(ProcessKeepAliveRules.shouldRunService(enabled = false, sessionActive = true))
         assertFalse(ProcessKeepAliveRules.shouldRunService(enabled = true, sessionActive = false))
+    }
+
+    @Test
+    fun intervalRespectsPlatformLowerBound() {
+        assertTrue(
+            ProcessKeepAliveRules.PERIODIC_INTERVAL_MS >= ProcessKeepAliveRules.MIN_PERIODIC_INTERVAL_MS,
+        )
+        assertTrue(ProcessKeepAliveRules.shouldSchedule(true))
+        assertFalse(ProcessKeepAliveRules.shouldSchedule(false))
     }
 }
