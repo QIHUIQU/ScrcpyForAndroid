@@ -1197,12 +1197,20 @@ class Scrcpy(
             serverLogBuffer.clear()
             val socketName = socketNameFor(scid.toInt())
 
+            // P1-2: 记账已打开的资源, 失败时逐个关闭/中断 —— 否则 adb shell 流泄漏
+            // (zombie server) 且 server 日志线程常驻
+            val openedStreams = ArrayList<AdbSocketStream>()
+            val startedThreads = ArrayList<Thread>()
+
             try {
                 val serverStream = NativeAdbService.openShellStream(serverCommand)
+                openedStreams += serverStream
                 val serverLogThread = startServerLogThread(serverStream, socketName)
+                startedThreads += serverLogThread
                 Thread.sleep(SERVER_BOOT_DELAY_MS)
 
                 val firstStream = openAbstractSocketWithRetry(socketName, expectDummyByte = true)
+                openedStreams += firstStream
                 val firstInput = DataInputStream(BufferedInputStream(firstStream.inputStream))
 
                 var videoStream: AdbSocketStream? = null
@@ -1233,18 +1241,22 @@ class Scrcpy(
 
                 if (options.video && videoStream == null) {
                     val vStream = openAbstractSocketWithRetry(socketName, expectDummyByte = false)
+                    openedStreams += vStream
                     videoStream = vStream
                     videoInput = DataInputStream(BufferedInputStream(vStream.inputStream))
                 }
 
                 if (options.audio && audioStream == null) {
                     val aStream = openAbstractSocketWithRetry(socketName, expectDummyByte = false)
+                    openedStreams += aStream
                     audioStream = aStream
                     audioInput = DataInputStream(BufferedInputStream(aStream.inputStream))
                 }
 
                 if (options.control && controlStream == null) {
-                    controlStream = openAbstractSocketWithRetry(socketName, expectDummyByte = false)
+                    val cStream = openAbstractSocketWithRetry(socketName, expectDummyByte = false)
+                    openedStreams += cStream
+                    controlStream = cStream
                 }
 
                 val deviceName = readDeviceName(firstInput)
@@ -1332,6 +1344,11 @@ class Scrcpy(
 
                 return sessionInfo
             } catch (t: Throwable) {
+                // P1-2: 关闭已打开的流(让读取线程退出)并中断日志线程, 避免资源泄漏
+                openedStreams.forEach { runCatching { it.close() } }
+                startedThreads.forEach { runCatching { it.interrupt() } }
+                stopInternal()
+                if (t is CancellationException) throw t
                 val tail = snapshotServerLogs()
                 val detail = if (tail.isBlank()) "" else " | server_log_tail=\n$tail"
                 throw IllegalStateException("scrcpy start failed: ${t.message}$detail", t)
@@ -1755,8 +1772,9 @@ class Scrcpy(
         ): AdbSocketStream {
             var lastEx: Exception? = null
             repeat(CONNECT_RETRY_COUNT) { attempt ->
+                var stream: AdbSocketStream? = null
                 try {
-                    val stream = NativeAdbService.openAbstractSocket(socketName)
+                    stream = NativeAdbService.openAbstractSocket(socketName)
                     if (expectDummyByte) {
                         val value = stream.inputStream.read()
                         if (value < 0) {
@@ -1766,6 +1784,7 @@ class Scrcpy(
                     }
                     return stream
                 } catch (e: Exception) {
+                    runCatching { stream?.close() }
                     lastEx = e
                     if (attempt < CONNECT_RETRY_COUNT - 1) Thread.sleep(CONNECT_RETRY_DELAY_MS)
                 }
