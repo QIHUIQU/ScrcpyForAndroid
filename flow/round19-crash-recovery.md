@@ -92,6 +92,12 @@
 - **不落地产品**：探针改动已从工作树撤回；探针 APK `54f9aa91…` 与源码单独留 `probe/`；v16.2 仍以 A 正式修复交付，
   **产品是否采用自动点按待用户决定**（最小落地面与隐私/设置变更建议见 PROBE-README）。
 
+## 4b. 任务 C（原项目包体核实，由另一并行子代理负责，本执行线未重复扫包）
+
+- 报告：`/Users/qifam/Documents/scrcpy-port-artifacts/findings-20261015-round19/package-audit/REPORT.md`（含 `manifest-inventory.json/csv`、`raw/`、`scan_apks.py`）。
+- 结论（引用，未由本线复验）：**按包体实证，原 EasyControl 全家（`top.eiyooooo.easycontrol.app*`，33 个 APK 中 27 个）没有任何包声明/实现无障碍服务**——manifest 0 处 `BIND_ACCESSIBILITY_SERVICE`/accessibilityservice intent-filter，DEX 唯一痕迹是恒返回 false 的占位方法；**真正含真实无障碍服务的是另一个项目**：本移植基线 `io.github.miuzarte.scrcpyforandroid` 0.7.0（其无障碍为 round16 自研加入）。即用户「原 EasyControl 最新候选包装了无障碍」的说法，就包体而言只对 scrcpy 移植包成立、对 EasyControl 包不成立。
+- 本线按合同**未重复扫 APK**；如需以该报告作最终口径，请主代理汇总时核对其原始证据。
+
 ## 5. 改动面（只碰崩溃恢复接线 + 恢复后导航日志 + 设置无关文件；未新增依赖/第二套机制）
 
 - `services/keepalive/CrashRecovery.kt`：新增 `RecoveryArrival`（跨进程到达文件）；`dispatchAutoRelaunch` 改用它。
