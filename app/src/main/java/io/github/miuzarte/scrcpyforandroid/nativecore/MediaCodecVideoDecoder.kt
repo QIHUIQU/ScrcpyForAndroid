@@ -31,7 +31,11 @@ class MediaCodecVideoDecoder(
     onOutputSizeChanged: ((width: Int, height: Int) -> Unit)? = null,
     onFpsUpdated: ((fps: Float) -> Unit)? = null,
 ) {
-    private val codec: MediaCodec = MediaCodec.createDecoderByType(mimeType)
+    private val codec: MediaCodec = try {
+        MediaCodec.createDecoderByType(mimeType)
+    } catch (e: Exception) {
+        throw DecoderException(mimeType, width, height, e)
+    }
     private val bufferInfo = MediaCodec.BufferInfo()
     private val outputSizeCallback = onOutputSizeChanged
     private val fpsUpdatedCallback = onFpsUpdated
@@ -76,6 +80,7 @@ class MediaCodecVideoDecoder(
         }
 
         if (!outputSurface.isValid) {
+            runCatching { codec.release() }
             throw DecoderException(
                 mimeType, width, height,
                 IllegalStateException("Output surface is not valid"),

@@ -75,6 +75,12 @@ object NativeCoreFacade {
     private var packetCount: Long = 0
     private val lastResetVideoRequestMs = java.util.concurrent.atomic.AtomicLong(0L)
 
+    // P1-3: 解码器构造失败自愈的节流状态 (避免 构造失败→重启→再构造失败 的死循环)
+    private var lastDecoderInitFailureRestartMs: Long? = null
+
+    @Volatile
+    private var decoderInitFailureRestarts = 0
+
     // Cached ClientOptions for session restart (downgrade / error recovery)
     @Volatile
     private var cachedClientOptions: ClientOptions? = null
@@ -276,6 +282,15 @@ object NativeCoreFacade {
         _restartInProgress.value = false
         controller.releaseAll()
         controller.resetBootstrap()
+        // P1-3: 先接线再构造解码器 —— 否则首次会话的构造失败不会被回调捕获
+        controller.onDecoderInitResult = { initialized ->
+            if (initialized) {
+                decoderInitFailureRestarts = 0
+                lastDecoderInitFailureRestartMs = null
+            } else {
+                handleDecoderInitFailure()
+            }
+        }
         if (activeSurfaceId != null || recordingSurfaceAttached) {
             // v4.0: width/height come from first video session packet, not from initial metadata
             if (session.width > 0 && session.height > 0) {
@@ -416,6 +431,26 @@ object NativeCoreFacade {
         }
     }
 
+    /**
+     * P1-3: 解码器**构造失败**(DecoderException) 的自愈 —— 此前只在日志里记录、静默无恢复
+     * (黑屏只剩音频, MTK 高发)。复用 [handleDecoderError] 重启会话, 但加节流与次数上限,
+     * 避免「构造失败→重启→再构造失败」死循环; 超过上限则放弃(交由用户操作)。
+     */
+    private fun handleDecoderInitFailure() {
+        if (isRestarting) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (!io.github.miuzarte.scrcpyforandroid.nativecore.shouldRetryDecoderInit(
+                decoderInitFailureRestarts, lastDecoderInitFailureRestartMs, now,
+            )) {
+            Log.w(TAG, "handleDecoderInitFailure(): throttled or restart limit reached ($decoderInitFailureRestarts)")
+            return
+        }
+        lastDecoderInitFailureRestartMs = now
+        decoderInitFailureRestarts++
+        Log.i(TAG, "handleDecoderInitFailure(): restarting session (attempt $decoderInitFailureRestarts)")
+        handleDecoderError()
+    }
+
     /** True when the current session was started in app-transfer (virtual display) mode. */
     fun isAppTransferSession(): Boolean = cachedClientOptions?.newDisplay?.isNotBlank() == true
 
@@ -539,4 +574,5 @@ object NativeCoreFacade {
 
     private const val TAG = "NativeCoreFacade"
     private const val RESET_VIDEO_MIN_INTERVAL_MS = 500L
+
 }

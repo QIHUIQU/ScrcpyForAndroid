@@ -10,6 +10,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.util.concurrent.CopyOnWriteArraySet
 
+internal fun shouldRetryDecoderInit(attempts: Int, lastRetryMs: Long?, nowMs: Long): Boolean =
+    attempts < 3 && (lastRetryMs == null || nowMs - lastRetryMs >= 8_000L)
+
 /**
  * Owns the video [MediaCodecVideoDecoder] lifecycle and all state surrounding it:
  *
@@ -52,6 +55,10 @@ internal class VideoDecoderController(
      */
     @Volatile
     var onPacketDropped: (() -> Unit)? = null
+
+    /** Reports construction outcome; recovery policy belongs to the facade. */
+    @Volatile
+    var onDecoderInitResult: ((Boolean) -> Unit)? = null
 
     /**
      * The session info currently associated with the decoder (or the most recently released
@@ -297,12 +304,13 @@ internal class VideoDecoderController(
             )
         } catch (e: DecoderException) {
             Log.e(TAG, "createOrReplaceDecoder(): decoder init failed for ${e.mime} ${e.width}x${e.height}", e)
-            // Surface already exists; leave decoder null. The facade will see isUsable()==false
-            // and can trigger downgrade/restart.
+            // 构造失败此前只在日志记录、静默无恢复(黑屏只剩音频): 通知 facade 走自愈重启 (P1-3)
+            onDecoderInitResult?.invoke(false)
             return
         }
         newDecoder.onPacketDropped = { onPacketDropped?.invoke() }
         decoder = newDecoder
+        onDecoderInitResult?.invoke(true)
         replayBootstrapPackets(newDecoder)
     }
 
