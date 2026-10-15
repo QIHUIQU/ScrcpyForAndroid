@@ -5,7 +5,6 @@ import android.content.Context
 import android.hardware.display.DisplayManager
 import android.util.Log
 import android.view.KeyEvent
-import android.view.MotionEvent
 import android.view.Surface
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
@@ -18,6 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -248,6 +249,34 @@ fun FullscreenControlScreen(
     var imeRequestToken by rememberSaveable { mutableIntStateOf(0) }
     var gammaPanelVisible by rememberSaveable { mutableStateOf(false) }
     var screenScalePanelVisible by rememberSaveable { mutableStateOf(false) }
+
+    // Round14: EasyControl's 2s dismissal, reset after interaction for our slider panels.
+    // Observe panels only, never consume events; held fingers pause even without MOVE events.
+    var panelTouchesDown by remember { mutableIntStateOf(0) }
+    var panelInteraction by remember { mutableIntStateOf(0) }
+    LaunchedEffect(gammaPanelVisible, screenScalePanelVisible, panelTouchesDown, panelInteraction) {
+        if ((!gammaPanelVisible && !screenScalePanelVisible) || panelTouchesDown > 0) return@LaunchedEffect
+        delay(2_000)
+        gammaPanelVisible = false
+        screenScalePanelVisible = false
+    }
+    val panelTouchObserver = Modifier.pointerInput(Unit) {
+        var previousDown = 0
+        try {
+            awaitPointerEventScope {
+                while (true) {
+                    val down = awaitPointerEvent(PointerEventPass.Initial).changes.count { it.pressed }
+                    panelTouchesDown += down - previousDown
+                    previousDown = down
+                    panelInteraction++
+                }
+            }
+        } finally {
+            panelTouchesDown -= previousDown
+            panelInteraction++
+        }
+    }
+
     var vdResolutionPanelVisible by rememberSaveable { mutableStateOf(false) }
     var vdWidthInput by rememberSaveable { mutableStateOf("768") }
     var vdHeightInput by rememberSaveable { mutableStateOf("1024") }
@@ -532,11 +561,6 @@ fun FullscreenControlScreen(
                 imeRequestToken = imeRequestToken,
                 enableBackHandler = false,
                 stretchFill = asBundle.stretchFill,
-                panelsVisible = gammaPanelVisible || screenScalePanelVisible,
-                onDismissPanels = {
-                    gammaPanelVisible = false
-                    screenScalePanelVisible = false
-                },
                 onImeCommitText = ::commitImeText,
                 onInjectTouch = { action, pointerId, x, y, pressure, actionButton, buttons ->
                     withContext(Dispatchers.IO) {
@@ -641,6 +665,7 @@ fun FullscreenControlScreen(
             if (gammaPanelVisible) {
                 Column(
                     modifier = Modifier
+                        .then(panelTouchObserver)
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 120.dp)
                         .width(320.dp)
@@ -656,6 +681,7 @@ fun FullscreenControlScreen(
                     Slider(
                         value = asBundle.gammaValue,
                         onValueChange = { raw ->
+                            panelInteraction++
                             val value = GammaSettings.progressToGamma(
                                 GammaSettings.gammaToProgress(raw),
                             )
@@ -671,6 +697,7 @@ fun FullscreenControlScreen(
             if (screenScalePanelVisible) {
                 Column(
                     modifier = Modifier
+                        .then(panelTouchObserver)
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 120.dp)
                         .width(320.dp)
@@ -687,6 +714,7 @@ fun FullscreenControlScreen(
                         value = asBundle.videoScale,
                         enabled = !asBundle.videoScaleLocked,
                         onValueChange = { value ->
+                            panelInteraction++
                             asBundle = asBundle.copy(videoScale = value)
                             NativeCoreFacade.setVideoScale(value)
                         },
@@ -697,6 +725,7 @@ fun FullscreenControlScreen(
                         enabled = !asBundle.videoScaleLocked,
                         text = stringResource(R.string.fullscreen_scale_reset),
                         onClick = {
+                            panelInteraction++
                             asBundle = asBundle.copy(videoScale = VideoScaleSettings.DEFAULT_SCALE)
                             NativeCoreFacade.setVideoScale(VideoScaleSettings.DEFAULT_SCALE)
                         },
@@ -709,6 +738,7 @@ fun FullscreenControlScreen(
                             else R.string.fullscreen_scale_lock,
                         ),
                         onClick = {
+                            panelInteraction++
                             asBundle = asBundle.copy(videoScaleLocked = !asBundle.videoScaleLocked)
                         },
                     )
@@ -904,9 +934,6 @@ fun FullscreenControlPage(
     enableBackHandler: Boolean = true,
     interactive: Boolean = true,
     stretchFill: Boolean = false,
-    /** 缩放/伽马面板是否可见; 可见时视频区触摸改为「关闭面板并吞掉整段手势」 */
-    panelsVisible: Boolean = false,
-    onDismissPanels: () -> Unit = {},
     onImeCommitText: suspend (String) -> Unit,
     onInjectTouch: suspend (
         action: Int,
@@ -922,8 +949,6 @@ fun FullscreenControlPage(
     BackHandler(enabled = enableBackHandler, onBack = onDismiss)
 
     val coroutineScope = rememberCoroutineScope()
-
-    val panelDismissGate = remember { PanelDismissTouchGate() }
 
     var touchAreaSize by remember { mutableStateOf(IntSize.Zero) }
 
@@ -1001,23 +1026,7 @@ fun FullscreenControlPage(
             .then(
                 if (interactive)
                     Modifier.pointerInteropFilter { event ->
-                        // 缩放/伽马面板可见时: 视频区首个 ACTION_DOWN 关闭双面板且不转发, 从 DOWN
-                        // 到 UP/CANCEL 的整段手势 (含 MOVE 与追加指针) 一并吞掉 —— 否则 DOWN 被吞
-                        // 但后续 UP 仍会被转发到被控端, 留下孤立 UP。面板自身控件 (Slider/按钮)
-                        // 会消费自己的触摸, 不会走到这里。两面板都关闭时本门恒为 false, 既有业务
-                        // 路径 (含 1× 与 v11 pan 语义) 逐字节不变。
-                        if (panelDismissGate.shouldConsume(event.actionMasked, panelsVisible)) {
-                            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-                                Log.i(
-                                    "FullscreenControlPage",
-                                    "video-area touch dismissed scale/gamma panel; gesture swallowed",
-                                )
-                                onDismissPanels()
-                            }
-                            true
-                        } else {
-                            touchEventHandler.handleMotionEvent(event)
-                        }
+                        touchEventHandler.handleMotionEvent(event)
                     }
                 else Modifier,
             )
@@ -1133,31 +1142,4 @@ fun FullscreenControlPage(
         }
     }
 
-}
-
-/**
- * 缩放/伽马面板可见时的视频区触摸门 (P19.8): 首个 ACTION_DOWN 关闭双面板并被吞掉; 从 DOWN 到
- * UP/CANCEL 的整段手势 (含 MOVE 与追加指针 POINTER_DOWN/POINTER_UP) 一并吞掉 —— 否则 DOWN 被吞
- * 但后续 UP 仍会被转发到被控端, 在被控端留下孤立 UP。面板关闭后本门立即透明: 无面板可见时
- * [shouldConsume] 恒为 false, 既有业务路径 (含 1× 与 v11 pan 语义) 逐字节不变。
- */
-internal class PanelDismissTouchGate {
-    private var swallowing = false
-
-    /** @return true 表示该事件必须被消费 (不转发), false 表示走既有触摸路径。 */
-    fun shouldConsume(action: Int, panelsVisible: Boolean): Boolean {
-        if (!swallowing) {
-            if (!panelsVisible || action != ACTION_DOWN) return false
-            swallowing = true
-            return true
-        }
-        if (action == ACTION_UP || action == ACTION_CANCEL) swallowing = false
-        return true
-    }
-
-    private companion object {
-        const val ACTION_DOWN = 0
-        const val ACTION_UP = 1
-        const val ACTION_CANCEL = 3
-    }
 }
