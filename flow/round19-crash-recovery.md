@@ -116,4 +116,17 @@
 - 跨 OEM 行为、`:a11y` 被系统回收后重武装的真机时序、会话代际/调度竞态未测。
 - 冲突/未决：无（授权边界按用户原话保守执行；未授权场景只读）。
 
-## 8. 实际结果锚点（构建完成后回填）
+## 8. 实际结果锚点
+
+- 提交（分支 `feat/eink-port-20261013`）：
+  - `fb9065d` `fix(recovery): reach the fullscreen page and signal arrival across processes`
+  - `afdd1fd` `test(scope): retarget the source guard to Round19`
+  - `dfd7d4b` `docs(round19): hand off v16.2, the two root causes and the honest gaps`
+  - 收尾 `docs(round19): v16.2 delivery anchors`（本 §8 + 交付根报告 + findings README + final-verification.json）
+- 远端：`origin https://github.com/QIHUIQU/ScrcpyForAndroid.git`；推送后 `git ls-remote origin feat/eink-port-20261013` 读回 = 分支 HEAD（见 `findings-20261015-round19/final-verification.json`）。
+- 双 clean 构建：两次 `:app:clean :app:assembleDebug :app:testDebugUnitTest`，各 **22 套件 124 例 0 失败/0 错误/0 跳过**；五个 APK 逐字节一致（`findings-20261015-round19/build/clean1.sha` = `clean2.sha`）。测试真实 XML 数：22 套件（`build/clean{1,2}-xml/*.xml`）。
+- 候选：`artifacts/ScrcpyForAndroid-EinkPort-candidate.apk`，49,146,351 B，SHA256 `dac1976f1aaac105ff2ce3c4e868c867fb42ffcc7be0429f96a4231ae500f36f`；apksigner V2 同旧证书 `c8c1b8b58c6f1f927293e03a1564c5666398e3442edc009fadb4e1c9cf736126`；内置 server 字节不变；装机 `pm path` 回读一致。
+- 守卫：`python3 scripts/verify_round19_scope.py` 退出码 0（全部 PASS）。
+- 继承脏文档去向：接手时 `flow/踩坑记录.md` 顶部的「任务卡不得随意打断 + 中断登记」16 行**已由既有提交 `d385b18` 落库**（非本轮改动、未覆盖、原样保留）；`stash@{0} round17-wip-killed-20261015` OID `1ebff2072294bad8bb778a422eef2d3708d84307` **未动**（收尾复核未变）。
+- 探针：`findings-20261015-round19/probe/ScrcpyForAndroid-EinkPort-round19-probe-gesture.apk` SHA256 `54f9aa91e221392f310050d5a75c1ebf3357f9c6db0c911b42b8a7a8ed616f2f`（仅实验，不进产品）。
+- `docs-check`：见 `findings-20261015-round19/final-verification.json`。
