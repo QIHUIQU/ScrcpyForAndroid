@@ -10,8 +10,9 @@
 
 ## 2. 当前阶段与最后一次实际动作
 
-- 阶段：**v16 重出候选已交付**；控制端已装 v16 重出 `35c2f08d…`（`pm path` 回读 base.apk SHA256 一致）。未授权崩溃/真实点通知/连续两次/真实划掉/无会话崩溃全部真机实测；“已授权自动回远控”待用户在系统设置手动开启无障碍后验证。
-- 最后一次实际完成：本轮续「崩溃恢复根因修复」——只读审计确认真实调用链与 AOSP 重绑反证后，把无障碍服务 + 新增 `RecoveryWatchdogService` 放**独立进程 `:a11y`**，用 AMS 解绑/销毁服务触发的 `onUnbind`/`onDestroy` 作事件驱动死亡信号（真机 24 ms，旧链约 74 s），走同一 `CrashRecovery` 判据/入口；跨进程门槛/去重改普通文件 `files/recovery_gate`（修掉真机发现的“划掉后仍恢复”与“同次崩溃重复计数”）。源码 + 单测 + 双 clean 构建 + 范围守卫 + 真机五场景 + 四件套交付 + `flow/` 留痕。验证程度：未授权路径真机闭环，已授权自动回远控待用户授权（见 §5、§7）。
+- 阶段：**v16.2 候选已交付**；控制端已装 v16.2 `dac1976f…`（`pm path` 回读 base.apk SHA256 一致）。活跃会话崩溃→自动回全屏远控页、连续两次崩溃、无会话崩溃→只主界面不重连、真实上滑划掉→不拉起，**全部真机实测**；未授权仅只读复核并引用历史 P23.1。
+- 最后一次实际完成：本轮续「崩溃恢复直达远控画面 + 如实到达信号」——真机定位两条缺陷（①到达信号用 SharedPreferences 跨进程不可见 ⇒ 误报 `not observed` 多发降级通知；②重建的 `:a11y` 进程里 `isEnabled` 误判无障碍未启用 ⇒ 已授权恢复错误降级），分别改**跨进程普通文件** `files/recovery_arrival` 与 **`isEnabled` 三级回退**；补四级日志 `dispatch/Activity到达/会话建立/画面可见`；未新造导航、未改 UnlockJump。源码 + 单测 + 双 clean + 范围守卫 + 真机五场景 + 四件套交付 + `flow/` 留痕。任务 B（无障碍手势关闭弹窗）仅真机探针、**未落地产品**。
+- 验证程度：A 全部真机闭环；B 实验成立但按授权边界未落地；系统崩溃弹窗在 v16.2 上仍需一次点按（如实登记）。
 
 ## 3. 重要决定与理由（不能重复踩的坑）
 
@@ -19,31 +20,33 @@
 - 黑屏效果以SF物理 `powerMode=Off`验证，结合PB-1事件；server INFO关屏行只在原日志级别允许时辅助；`mWakefulness`/`dumpsys display state`/`screencap` **都不是**判据。
 - 已确认Off后的新On复位；首次Off被快速点亮漏采时，五秒命令宽限后仍需真实On才复位，不得永久等Off。Mutex串行采样/决策，未知不复位。
 - 用户交互设计不靠猜测：对照参考实现或用户原话。
+- **跨进程只信普通文件**：`SharedPreferences` 不支持跨进程（各进程各持缓存）。本项目已两次踩同一个坑——`recovery_gate`（划掉后仍恢复/同次崩溃重复计数）与本轮 `files/recovery_arrival`（已到达仍误报 `not observed`）。**凡"两个回调/两个进程都要看"的状态，一律走普通文件。**
+- **无障碍「已启用」判据不要只看进程内管理器列表**：重建出来的 `:a11y` 进程里 `AccessibilityManager.getEnabledAccessibilityServiceList` 可能为空 ⇒ 已授权恢复被误降级；要回退到本进程连接标志与 `Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES`。**只读用户已给授权，绝不代授权。**
 - 失败记录/踩坑与原话不覆盖，见 `flow/踩坑记录.md`。
 
 ## 4. 文件索引 / 仓库 / 分支
 
 - 仓库：`~/Documents/scrcpy-port`（origin `QIHUIQU/ScrcpyForAndroid`，本轮gh回读isPrivate=false，现为公开fork；未改可见性、不称私有备份；upstream `Miuzarte/ScrcpyForAndroid`），分支 `feat/eink-port-20261013`；基线 `357f3a9`；backup 分支 `pre-review-fixes-20261014` 与标签 `v11-candidate` = `44a03b3`（不动）。
 - 交付目录：`~/Documents/scrcpy-port-artifacts/`（候选四件套 + rollback/ + findings-20261014-roundNN/ + 各轮报告）。
-- 本轮关键文件：`services/recovery/RecoveryWatchdogService.kt`（新增，独立 `:a11y` 进程的看门狗）、`services/recovery/CrashRecoveryAccessibilityService.kt`、`services/keepalive/CrashRecovery.kt`（共享判据/入口 + 跨进程门槛 `RecoveryGate`）、`services/keepalive/ProcessKeepAliveService.kt`（门槛落盘）、`NativeCoreFacade.kt`（会话开始 arm / 结束 disarm）、`pages/SettingsScreen.kt`、`pages/DeviceTabViewModel.kt`(restoreActiveSession 复位计数)、`app/src/main/AndroidManifest.xml`（两服务 `android:process=":a11y"`）、`app/src/main/res/xml/accessibility_service_config.xml`、`values(-zh)/strings.xml`；守卫 `scripts/verify_round16_scope.py`；报告 `flow/round16-crash-recovery.md`。
+- 本轮关键文件：`services/keepalive/CrashRecovery.kt`（共享判据/入口 + 跨进程门槛 `RecoveryGate` + **本轮跨进程到达 `RecoveryArrival`**）、`services/recovery/CrashRecoveryAccessibilityService.kt`（本进程连接标志 + `isEnabled` 三级回退）、`services/recovery/RecoveryWatchdogService.kt`（独立 `:a11y` 看门狗）、`MainActivity.kt`（消费恢复意图 + `RecoveryArrival.markArrived`）、`services/keepalive/ProcessKeepAliveService.kt`（门槛落盘）、`NativeCoreFacade.kt`（会话开始 arm / 结束 disarm）、`pages/DeviceTabViewModel.kt`（四级日志之 `session established` / `fullscreen request dispatched`）、`pages/DeviceTabScreen.kt` + `pages/StreamScreen.kt` + `StreamActivity.kt`（四级日志之「画面可见」）；守卫 `scripts/verify_round19_scope.py`（当前门；`verify_round16_scope.py` 已转历史快照）；报告 `flow/round19-crash-recovery.md`；探针 `artifacts/findings-20261015-round19/probe/`。
 - 设备状态读取：`adb -s 10.0.0.237:5555 …`（控制端）/ `adb -s 10.0.0.232:7777 …`（被控端）。
 
 ## 5. 环境条件与完成判据
 
 - 构建：`export JAVA_HOME=$(/usr/libexec/java_home -v 21) ANDROID_HOME=/opt/homebrew/share/android-commandlinetools; ./gradlew :app:clean :app:assembleDebug :app:testDebugUnitTest`（`submodule/miuix` 需要 `ANDROID_HOME`）。
-- 单测/守卫：`./gradlew :app:testDebugUnitTest`；`python3 scripts/verify_round16_scope.py`（round15 守卫为历史快照，其“改动面恰为 round15 三源两测试”断言已被本轮取代，不再作为当前门）；留痕自检 `python3 ~/.hermes/scripts/project_team.py docs-check --root ~/Documents/scrcpy-port`。
-- 已核实：双 clean 五 APK 逐字节一致、22 套件 123 例 0 失败、签名同旧证书、server 字节不变、`verify_round16_scope.py` 通过（含 P22 冻结、独立进程、跨进程门槛、跨触发源去重断言）、装包回读 hash 一致；真机未授权崩溃（24 ms 触发）/真实点通知/连续两次/真实划掉（`gate declined` 不拉起）/无会话崩溃（无动作、手动落主界面）。
-- 未完成/待用户：`验收清单.md` P23（重点 P23.2 已授权自动回远控需用户在系统设置手动开启无障碍——设备当前 `accessibility_enabled=0`）；P22/P21/P19 未测项；旧 P17/P18 回归。
-- 仍需条件：**无**（设备已交回并可用；被控端解锁需用户本人 PIN/手表信任，操作员不得代输）。
+- 单测/守卫：`./gradlew :app:testDebugUnitTest`；`python3 scripts/verify_round19_scope.py`（当前门，承载 round16 全部保护 + 本轮不变量 + 断言探针不在产品内；`verify_round16_scope.py` 与 round15 守卫为历史快照，不再作为当前门）；留痕自检 `python3 ~/.hermes/scripts/project_team.py docs-check --root ~/Documents/scrcpy-port`。
+- 已核实：双 clean 五 APK 逐字节一致、**22 套件 124 例** 0 失败/错误/跳过、签名同旧证书 `c8c1b8b5…`、server 字节不变、`verify_round19_scope.py` 通过；装包回读 hash 一致；真机活跃崩溃→自动回全屏页（四级日志齐全 + UI=全屏页 + 被控端 display=3）/连续两次崩溃/无会话崩溃（无动作、`reconnecting` 计数 0）/真实划掉（`gate declined` 不拉起）。
+- 未完成/待用户：`验收清单.md` P23 用户自然复验（重点 P23.2 活跃崩溃→自动回全屏画面）；P22/P21/P19 未测项；旧 P17/P18 回归。
+- 仍需条件：**无**（设备已可用；被控端解锁需用户本人 PIN/手表信任，操作员不得代输）。
 
 ## 6. 下一项具体任务与启动方法
 
-1. PAPER_7 已装 v16 重出最终包 `35c2f08d…`，无需重装；候选固定路径仍为 ~/Documents/scrcpy-port-artifacts/ScrcpyForAndroid-EinkPort-candidate.apk。
-2. 按 `验收清单.md` **P23**：先在设置页点「崩溃自动拉起（无障碍）」→ 系统无障碍设置**手动开启**，再复验「活跃会话崩溃自动回远控」；日志关键字 `CrashRecoveryWatchdog`、`CrashRecovery`、`recovery `、`crash recovery`。
-3. 结果带时间/步骤/hash 回对话，由执行会话接手；失败附 `CrashRecovery`/`RecoveryWatchdog`/`MainActivity` 片段。
+1. PAPER_7 已装 v16.2 最终包 `dac1976f…`，无需重装；候选固定路径仍为 ~/Documents/scrcpy-port-artifacts/ScrcpyForAndroid-EinkPort-candidate.apk。
+2. 按 `验收清单.md` **P23**：活跃会话崩溃后应**自动回到全屏远控画面**（四级日志 `recovery launch dispatched` → `recovery launch arrived` → `session established` → `fullscreen route requested/page composed` 或 `StreamActivity fullscreen control page visible`）；日志关键字 `CrashRecovery`、`CrashRecoveryWatchdog`、`recovery `、`crash recovery`、`fullscreen`、`StreamActivity`。
+3. 结果带时间/步骤/hash 回对话，由执行会话接手；失败附 `CrashRecovery`/`RecoveryWatchdog`/`MainActivity`/`DeviceTabViewModel`/`FullscreenControlRoute` 片段。
 
 ## 7. 继承资料 vs 已重新检查 vs 未验证
 
 - 继承：EasyControl 的行为口径（PB-1 / ControlledLockWake / M08），历史各轮报告与 P 段验收要求。
-- 本轮已重新检查：v13→v14 改动面（排除回归）、`services/blackout/**` 全部赋值与调用者、被控端 SF 物理面板电源行为、v8/v12 两处旧修是否仍在。
-- 未验证：**已授权自动回远控**（需用户手动开启无障碍，设备当前未授权；`:a11y` 持 BAL 并由本进程 `startActivity` 的路径已实现+源码守卫，但真机未验）；跨 OEM 行为；`:a11y` 被系统回收后重武装的真机时序；见 `flow/round16-crash-recovery.md` §5 与 `flow/CURRENT_STATE.md`；PB-1 侧剩余见 `flow/round15-payment-blackout.md` §6。
+- 本轮已重新检查：崩溃恢复全链路（`:a11y` 看门狗→`CrashRecovery`→`MainActivity`→`DeviceTabViewModel.restoreActiveSession`→既有全屏入口）在真机逐段核对；旧包 `35c2f08d` 的到达误报在真机复现（`oldbuild-crashpath.txt`）；`isEnabled` 在重建 `:a11y` 进程里误判的现场（`repro3`/`repro` 日志）。
+- 未验证：跨 OEM 行为；`:a11y` 被系统回收后重武装的真机时序；会话代际/调度竞态；**系统崩溃弹窗自动关闭未落地**（任务 B 探针成立但按授权边界未产品化，见 `findings-20261015-round19/probe/`）；用户侧「停在设备列表」未独立复现。见 `flow/round19-crash-recovery.md` §7 与 `flow/CURRENT_STATE.md`；PB-1 侧剩余见 `flow/round15-payment-blackout.md` §6。
