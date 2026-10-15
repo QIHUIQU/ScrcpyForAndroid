@@ -508,8 +508,17 @@ object NativeCoreFacade {
      * and on start failure here.
      */
     private suspend fun restartSessionWith(options: ClientOptions?) {
-        val scrcpy = scrcpyRef ?: return
-        if (options == null) return
+        val scrcpy = scrcpyRef
+        if (scrcpy == null || options == null) {
+            // P0-4: 早退也必须复位标志 —— 三个入口(解码错误/流转切换/分辨率降级)都在调用前
+            // 置 true, 早退不复位会永久卡住, 之后所有重连/降级/解码自愈静默失效、全屏页不退出
+            _restartInProgress.value = false
+            Log.w(
+                TAG,
+                "restartSessionWith(): early return (scrcpy=${scrcpy != null}, options=${options != null}), restart flag cleared",
+            )
+            return
+        }
         Log.i(TAG, "restartSessionWith(): stopping current session")
         runCatching { scrcpy.stop(Scrcpy.StopReason.USER) }
         Log.i(
