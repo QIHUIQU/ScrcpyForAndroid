@@ -1,0 +1,117 @@
+[
+  {
+    "item": "P0-1",
+    "commit": "03eb917572d1bfbcceba2f8c906cc142992a6cd4",
+    "message": "fix(keepalive): P0-1 initialize runtime before cold periodic job reads"
+  },
+  {
+    "item": "P0-2",
+    "commit": "ddfde8ea351e9f8b10c643ca34b40d451e135ef3",
+    "message": "fix(keepalive): P0-2 remove duplicate crashing boot receiver"
+  },
+  {
+    "item": "P0-3+P1-6",
+    "commit": "922587c553c197b548fe7ddb7009e20224fe0214",
+    "message": "fix(control): P0-3 P1-6 isolate auto-unlock blackout hooks and propagate write failures"
+  },
+  {
+    "item": "P0-4",
+    "commit": "8efa9352e5f365777e42aae0d9e312f9b756ab01",
+    "message": "fix(session): P0-4 clear restart flag on aborted restart"
+  },
+  {
+    "item": "P0-5",
+    "commit": "7f99dd79a7badd253b574b22e98a4f00a2fa49c7",
+    "message": "fix(ui): P0-5 seed VD resolution editor from saved dimensions"
+  },
+  {
+    "item": "P0-6",
+    "commit": "4fb31646bdc6596a227b6130c804675e3c98449d",
+    "message": "fix(password): P0-6 guard startup storage work off main thread"
+  },
+  {
+    "item": "P0-7",
+    "commit": "520a552c372a65b3ed32a75657d8efaf57b86ac1",
+    "message": "fix(security): P0-7 mark copied ADB private keys sensitive"
+  },
+  {
+    "item": "P1-1",
+    "commit": "6d35226bf20afe0f6e435a571f639bdcd7b43a06",
+    "message": "fix(session): P1-1 release started session and recorder on setup failure"
+  },
+  {
+    "item": "P1-2",
+    "commit": "e90337d27ef6a5eb713fb07759105088f3834496",
+    "message": "fix(session): P1-2 close partial startup streams and log threads"
+  },
+  {
+    "item": "P1-3",
+    "commit": "714ee8e29ea40d4d59aaf49aba31c879d8ee4d64",
+    "message": "fix(video): P1-3 report decoder construction failures with bounded recovery"
+  },
+  {
+    "item": "P1-4",
+    "commit": "a16aaee00e884e421c9453dba19f11136d77608d",
+    "message": "fix(video): P1-4 release waiting decoder without false restart"
+  },
+  {
+    "item": "P1-5",
+    "commit": "f70e42603e7a4240d4aa1c843358ce3d4690c917",
+    "message": "fix(touch): P1-5 cancel scaled multi-pointer pan before gesture start"
+  },
+  {
+    "item": "P1-7",
+    "commit": "5e53b8725df600d2bff15328a66bafbbb21f6101",
+    "message": "fix(adb): P1-7 require three consecutive failed liveness probes"
+  },
+  {
+    "item": "P1-8",
+    "commit": "cc9071a3f6f4a3efd8cd39ce6a7efcba7457b626",
+    "message": "fix(terminal): P1-8 accept composing-text commits in legacy input view"
+  },
+  {
+    "item": "P1-9",
+    "commit": "6407d83a0e64e6a4854e3daf34483fd3f30999bf",
+    "message": "fix(security): P1-9 keep password editor out of saved state"
+  },
+  {
+    "item": "P2-1",
+    "commit": "ea63342f683f5d40c139f4d8247b776eb8da6e95",
+    "message": "chore(core): P2-1 delete uncalled facade close path"
+  },
+  {
+    "item": "P2-2",
+    "commit": "343db6d063cc48a07af975ac44ec74872b144d22",
+    "message": "chore(keepalive): P2-2 remove dead scheduling helper and duplicate interval"
+  },
+  {
+    "item": "P2-3",
+    "commit": "38e95d3447fbeea08f59a263eaf51ef4e4fa57a2",
+    "message": "chore(storage): P2-3 trim unused settings APIs but retain live get/set"
+  },
+  {
+    "item": "P2-4",
+    "commit": "8e4ed7416653f850c4d521ab6caa22cc6787ba7b",
+    "message": "chore(settings): P2-4 remove unconfigurable LAN discovery flag"
+  },
+  {
+    "item": "P2-5",
+    "commit": "e79f849095f82687ef4d6f8f54f7f9bfc35be695",
+    "message": "chore(keepalive): P2-5 delete duplicate main-thread settings reads"
+  },
+  {
+    "item": "P2-6",
+    "commit": "13c1e0e3a2f4a51dc4bc67bad453585057c9e016",
+    "message": "chore(storage): P2-6 delete unused Compose bundle helper"
+  },
+  {
+    "item": "Q2",
+    "commit": "78c19ad624f62df95dbea06a367b52fa2b7ef604",
+    "message": "fix(preview): Q2 allow two-finger pan only on fullscreen page"
+  },
+  {
+    "item": "scope",
+    "commit": "754a06d8be300deda0d243e8f7e5be784f3e6f73",
+    "message": "test(scope): verify v11 touch payload and frozen behavior invariants"
+  }
+]
