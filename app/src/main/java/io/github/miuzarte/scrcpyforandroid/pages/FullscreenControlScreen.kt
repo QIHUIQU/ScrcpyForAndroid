@@ -921,6 +921,7 @@ fun FullscreenControlPage(
             session = session,
             touchAreaSize = touchAreaSize,
             stretchFill = stretchFill,
+            panEnabled = true,
             activePointerIds = activePointerIds,
             activePointerPositions = activePointerPositions,
             activePointerDevicePositions = activePointerDevicePositions,

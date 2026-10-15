@@ -294,6 +294,8 @@ internal fun PreviewCard(
             session = sessionInfo,
             touchAreaSize = touchAreaSize,
             stretchFill = stretchFill,
+            // 设备卡预览禁用双指平移: 共享全局 pan 状态会把全屏画面顶偏 (Q2)
+            panEnabled = false,
             activePointerIds = activePointerIds,
             activePointerPositions = activePointerPositions,
             activePointerDevicePositions = activePointerDevicePositions,
