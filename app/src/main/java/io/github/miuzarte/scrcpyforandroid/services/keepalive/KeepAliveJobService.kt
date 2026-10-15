@@ -20,6 +20,7 @@ import io.github.miuzarte.scrcpyforandroid.storage.Storage
  */
 class KeepAliveJobService : JobService() {
     override fun onStartJob(params: JobParameters?): Boolean {
+        AppRuntime.init(applicationContext)
         // Cold process resurrection: the settings StateFlow still holds defaults until loaded.
         runCatching { kotlinx.coroutines.runBlocking { Storage.appSettings.loadBundle() } }
             .onFailure { Log.w(TAG, "job: settings unavailable", it) }
