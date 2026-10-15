@@ -10,8 +10,8 @@
 
 ## 2. 当前阶段与最后一次实际动作
 
-- 阶段：**v16 候选已交付**；控制端已装 v16 `43775698…`（install 回读 base.apk SHA256 一致）。未授权降级 + 通知退路已真机实测；“已授权自动回远控”待用户在系统设置开启无障碍后验证。
-- 最后一次实际完成：本轮「崩溃后自动拉起回远控」（AccessibilityService 主机制 + 共享 `CrashRecovery` 判据/入口 + 未授权通知降级 + 设置引导 + 成功复位计数）—— 源码 + 单测（先红后绿）+ 双 clean 构建 + 范围守卫 + 真机（未授权降级/通知退路/上限退避/成功复位）+ 四件套交付 + `flow/` 留痕。验证程度：未授权路径真机闭环，已授权自动回远控待用户授权（见 §5、§7）。
+- 阶段：**v16 重出候选已交付**；控制端已装 v16 重出 `35c2f08d…`（`pm path` 回读 base.apk SHA256 一致）。未授权崩溃/真实点通知/连续两次/真实划掉/无会话崩溃全部真机实测；“已授权自动回远控”待用户在系统设置手动开启无障碍后验证。
+- 最后一次实际完成：本轮续「崩溃恢复根因修复」——只读审计确认真实调用链与 AOSP 重绑反证后，把无障碍服务 + 新增 `RecoveryWatchdogService` 放**独立进程 `:a11y`**，用 AMS 解绑/销毁服务触发的 `onUnbind`/`onDestroy` 作事件驱动死亡信号（真机 24 ms，旧链约 74 s），走同一 `CrashRecovery` 判据/入口；跨进程门槛/去重改普通文件 `files/recovery_gate`（修掉真机发现的“划掉后仍恢复”与“同次崩溃重复计数”）。源码 + 单测 + 双 clean 构建 + 范围守卫 + 真机五场景 + 四件套交付 + `flow/` 留痕。验证程度：未授权路径真机闭环，已授权自动回远控待用户授权（见 §5、§7）。
 
 ## 3. 重要决定与理由（不能重复踩的坑）
 
@@ -25,25 +25,25 @@
 
 - 仓库：`~/Documents/scrcpy-port`（origin `QIHUIQU/ScrcpyForAndroid`，本轮gh回读isPrivate=false，现为公开fork；未改可见性、不称私有备份；upstream `Miuzarte/ScrcpyForAndroid`），分支 `feat/eink-port-20261013`；基线 `357f3a9`；backup 分支 `pre-review-fixes-20261014` 与标签 `v11-candidate` = `44a03b3`（不动）。
 - 交付目录：`~/Documents/scrcpy-port-artifacts/`（候选四件套 + rollback/ + findings-20261014-roundNN/ + 各轮报告）。
-- 本轮关键文件：`app/src/main/java/io/github/miuzarte/scrcpyforandroid/services/recovery/CrashRecoveryAccessibilityService.kt`、`services/keepalive/CrashRecovery.kt`、`services/keepalive/ProcessKeepAliveService.kt`、`pages/SettingsScreen.kt`、`pages/DeviceTabViewModel.kt`(restoreActiveSession 复位计数)、`app/src/main/AndroidManifest.xml`、`app/src/main/res/xml/accessibility_service_config.xml`、`values(-zh)/strings.xml`；守卫 `scripts/verify_round16_scope.py`；报告 `flow/round16-crash-recovery.md`。
+- 本轮关键文件：`services/recovery/RecoveryWatchdogService.kt`（新增，独立 `:a11y` 进程的看门狗）、`services/recovery/CrashRecoveryAccessibilityService.kt`、`services/keepalive/CrashRecovery.kt`（共享判据/入口 + 跨进程门槛 `RecoveryGate`）、`services/keepalive/ProcessKeepAliveService.kt`（门槛落盘）、`NativeCoreFacade.kt`（会话开始 arm / 结束 disarm）、`pages/SettingsScreen.kt`、`pages/DeviceTabViewModel.kt`(restoreActiveSession 复位计数)、`app/src/main/AndroidManifest.xml`（两服务 `android:process=":a11y"`）、`app/src/main/res/xml/accessibility_service_config.xml`、`values(-zh)/strings.xml`；守卫 `scripts/verify_round16_scope.py`；报告 `flow/round16-crash-recovery.md`。
 - 设备状态读取：`adb -s 10.0.0.237:5555 …`（控制端）/ `adb -s 10.0.0.232:7777 …`（被控端）。
 
 ## 5. 环境条件与完成判据
 
 - 构建：`export JAVA_HOME=$(/usr/libexec/java_home -v 21) ANDROID_HOME=/opt/homebrew/share/android-commandlinetools; ./gradlew :app:clean :app:assembleDebug :app:testDebugUnitTest`（`submodule/miuix` 需要 `ANDROID_HOME`）。
 - 单测/守卫：`./gradlew :app:testDebugUnitTest`；`python3 scripts/verify_round16_scope.py`（round15 守卫为历史快照，其“改动面恰为 round15 三源两测试”断言已被本轮取代，不再作为当前门）；留痕自检 `python3 ~/.hermes/scripts/project_team.py docs-check --root ~/Documents/scrcpy-port`。
-- 已核实：双 clean 五 APK 逐字节一致、22 套件 122 例 0 失败、签名同旧证书、server 字节不变、`verify_round16_scope.py` 通过（含 P22 冻结）、装包回读 hash 一致；真机未授权降级/通知退路/上限/成功复位。
-- 未完成/待用户：`验收清单.md` P23（重点 P23.2 已授权自动回远控需用户在系统设置手动开启无障碍）；P22/P21/P19 未测项；旧 P17/P18 回归。
+- 已核实：双 clean 五 APK 逐字节一致、22 套件 123 例 0 失败、签名同旧证书、server 字节不变、`verify_round16_scope.py` 通过（含 P22 冻结、独立进程、跨进程门槛、跨触发源去重断言）、装包回读 hash 一致；真机未授权崩溃（24 ms 触发）/真实点通知/连续两次/真实划掉（`gate declined` 不拉起）/无会话崩溃（无动作、手动落主界面）。
+- 未完成/待用户：`验收清单.md` P23（重点 P23.2 已授权自动回远控需用户在系统设置手动开启无障碍——设备当前 `accessibility_enabled=0`）；P22/P21/P19 未测项；旧 P17/P18 回归。
 - 仍需条件：**无**（设备已交回并可用；被控端解锁需用户本人 PIN/手表信任，操作员不得代输）。
 
 ## 6. 下一项具体任务与启动方法
 
-1. PAPER_7 已装 v16 最终包 `43775698…`，无需重装；候选固定路径仍为 ~/Documents/scrcpy-port-artifacts/ScrcpyForAndroid-EinkPort-candidate.apk。
-2. 按 `验收清单.md` **P23**：先在设置页点「崩溃自动拉起（无障碍）」→ 系统无障碍设置手动开启，再复验「活跃会话崩溃自动回远控」；日志关键字 `CrashRecovery`、`recovery `、`crash recovery`。
-3. 结果带时间/步骤/hash 回对话，由执行会话接手；失败附 `CrashRecovery`/`ProcessKeepAlive`/`MainActivity` 片段。
+1. PAPER_7 已装 v16 重出最终包 `35c2f08d…`，无需重装；候选固定路径仍为 ~/Documents/scrcpy-port-artifacts/ScrcpyForAndroid-EinkPort-candidate.apk。
+2. 按 `验收清单.md` **P23**：先在设置页点「崩溃自动拉起（无障碍）」→ 系统无障碍设置**手动开启**，再复验「活跃会话崩溃自动回远控」；日志关键字 `CrashRecoveryWatchdog`、`CrashRecovery`、`recovery `、`crash recovery`。
+3. 结果带时间/步骤/hash 回对话，由执行会话接手；失败附 `CrashRecovery`/`RecoveryWatchdog`/`MainActivity` 片段。
 
 ## 7. 继承资料 vs 已重新检查 vs 未验证
 
 - 继承：EasyControl 的行为口径（PB-1 / ControlledLockWake / M08），历史各轮报告与 P 段验收要求。
 - 本轮已重新检查：v13→v14 改动面（排除回归）、`services/blackout/**` 全部赋值与调用者、被控端 SF 物理面板电源行为、v8/v12 两处旧修是否仍在。
-- 未验证：见 `flow/CURRENT_STATE.md` 与 `flow/round15-payment-blackout.md` §6（真解锁后的完整本地使用形态、`D>0` 新路径真机、折叠态切换期间行为、快速唤醒窗、会话代际与关屏采样竞态真机/故障注入）。
+- 未验证：**已授权自动回远控**（需用户手动开启无障碍，设备当前未授权；`:a11y` 持 BAL 并由本进程 `startActivity` 的路径已实现+源码守卫，但真机未验）；跨 OEM 行为；`:a11y` 被系统回收后重武装的真机时序；见 `flow/round16-crash-recovery.md` §5 与 `flow/CURRENT_STATE.md`；PB-1 侧剩余见 `flow/round15-payment-blackout.md` §6。
