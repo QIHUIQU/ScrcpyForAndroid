@@ -276,6 +276,17 @@ fun FullscreenControlScreen(
         onVideoSizeChanged(session.width, session.height)
     }
 
+    // 打开 VD 分辨率面板时用当前生效值播种输入框: 否则不清空、直接点「保存」会按初始
+    // "768"/"1024" 落库, 把用户已设的尺寸改回默认(用户可见的数据丢失) (P0-5)
+    LaunchedEffect(vdResolutionPanelVisible) {
+        if (vdResolutionPanelVisible) {
+            val size = TransferOptions.normalizeVdSize(asBundle.transferVdSize)
+                ?: TransferOptions.DEFAULT_VD_SIZE
+            vdWidthInput = size.substringBefore('x')
+            vdHeightInput = size.substringAfter('x')
+        }
+    }
+
     DisposableEffect(Unit) {
         val listener: (Float) -> Unit = { fps ->
             currentFps = fps
