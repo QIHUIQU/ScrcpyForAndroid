@@ -1,5 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.storage
 
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -52,4 +54,47 @@ class BundleSyncDelegate<T>(
         val latest = _value.value
         if (latest != sharedFlow.value) save(latest)
     }
+}
+
+/**
+ * Composable equivalent of [BundleSyncDelegate] for files not yet migrated to
+ * ViewModel. Returns a mutable state backed by [sharedFlow] with debounced save.
+ *
+ * Usage:
+ * ```
+ * var asBundle by rememberBundleState(
+ *     sharedFlow = appSettings.bundleState,
+ *     save = { appSettings.saveBundle(it) },
+ * )
+ * ```
+ */
+@Composable
+fun <T> rememberBundleState(
+    sharedFlow: StateFlow<T>,
+    save: suspend (T) -> Unit,
+): MutableState<T> {
+    val shared by sharedFlow.collectAsState()
+    val sharedLatest by rememberUpdatedState(shared)
+    val state = rememberSaveable(shared) { mutableStateOf(shared) }
+    var local by state
+    val localLatest by rememberUpdatedState(local)
+    val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
+
+    LaunchedEffect(shared) {
+        if (local != shared) local = shared
+    }
+    LaunchedEffect(local) {
+        delay(Settings.BUNDLE_SAVE_DELAY)
+        if (local != sharedLatest) save(local)
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            kotlinx.coroutines.runBlocking(Dispatchers.IO) {
+                if (localLatest != sharedFlow.value) save(localLatest)
+            }
+            taskScope.cancel()
+        }
+    }
+
+    return state
 }
