@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.PersistableBundle
 import android.util.Log
 import android.view.View
 import android.view.inputmethod.InputMethodManager
@@ -47,9 +48,16 @@ object LocalInputService {
         return clip.getItemAt(0).coerceToText(context)?.toString()
     }
 
-    fun setClipboardText(context: Context, text: String) {
+    fun setClipboardText(context: Context, text: String, sensitive: Boolean = false) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
             ?: return
-        clipboard.setPrimaryClip(ClipData.newPlainText("scrcpy", text))
+        val clip = ClipData.newPlainText("scrcpy", text)
+        if (sensitive) {
+            // Android 13+ 的剪贴板预览/历史据此打码, 避免私钥明文外泄
+            clip.description.extras = PersistableBundle().apply {
+                putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+            }
+        }
+        clipboard.setPrimaryClip(clip)
     }
 }

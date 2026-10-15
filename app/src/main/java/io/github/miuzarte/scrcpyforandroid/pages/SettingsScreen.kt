@@ -1434,7 +1434,7 @@ fun SettingsPage(
                         } ?: error("Key not available")
                     }
                 }.onSuccess { pem ->
-                    LocalInputService.setClipboardText(context, pem)
+                    LocalInputService.setClipboardText(context, pem, sensitive = target == "private")
                     AppRuntime.snackbar(R.string.pref_adb_key_exported_clipboard)
                 }.onFailure { e ->
                     AppRuntime.snackbar(
